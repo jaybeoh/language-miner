@@ -1124,6 +1124,11 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
   </div>
 </div>
 
+<div id="update-banner" style="display:none;position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--gold-dim);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap">
+  <span style="font-size:.8rem;color:var(--text);font-family:'Lato',sans-serif">Update available</span>
+  <button onclick="applyUpdate()" style="background:var(--gold);border:none;border-radius:8px;color:#0f0e0b;padding:5px 12px;font-size:.78rem;font-weight:700;font-family:'Lato',sans-serif;cursor:pointer">Refresh</button>
+  <button onclick="document.getElementById('update-banner').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:0 2px">✕</button>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -1643,7 +1648,7 @@ function openLangPicker(){
   document.getElementById('lang-search').value='';
   filterLangs('');
   const title=document.getElementById('lang-picker-title');
-  if(title) title.textContent = activeLangs.length===0 ? 'Choose your first language' : 'Add a Target Language';
+  if(title) title.textContent = activeLangs.length===0 ? 'Choose your first target language' : 'Add a Target Language';
   document.getElementById('lang-picker-modal').classList.add('visible');
   setTimeout(()=>document.getElementById('lang-search').focus(),100);
 }
@@ -2528,48 +2533,63 @@ function toggleMic(){isListening?stopListening():startListening();}
 function startListening(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){setMicStatus('Speech recognition unavailable.','error');return;}
-  const m=currentMeta(), speechLang=inputLang==='en'?'en-GB':m.speechCode;
-  recognition=new SR();
-  recognition.interimResults=true;recognition.maxAlternatives=3;recognition.continuous=false;
-  recognition._lang=speechLang;recognition.lang=speechLang;
-  recognition.onstart=()=>{isListening=true;document.getElementById('mic-btn').classList.add('listening');document.getElementById('mic-ring').classList.add('pulse');setMicStatus('Listening\u2026','active');hidePreview();};
-  let interimText='';
-  recognition.onresult=(e)=>{interimText='';for(let i=e.resultIndex;i<e.results.length;i++)interimText+=e.results[i][0].transcript;if(!e.results[e.results.length-1].isFinal)setMicStatus('\uD83C\uDFA4 '+interimText,'active');};
-  recognition.onend=async()=>{
-    stopListening();
-    if(!interimText.trim()){setMicStatus('Nothing heard. Tap to try again.','');return;}
-    const spoken=interimText.trim();
-    setMicStatus('<span class="thinking-dots">Translating<span>.</span><span>.</span><span>.</span></span>','active');
-    try{
-      let targetWord,english,roman;
-      if(inputLang==='en'){
-        targetWord=await translate(spoken,'en',m.myMemory);
-        english=spoken;
-      } else {
-        targetWord=spoken;
-        english=await translate(spoken,m.myMemory,'en');
+  setMicStatus('Starting\u2026','active');
+  // iOS Safari requires getUserMedia permission grant before webkitSpeechRecognition will work.
+  // We request mic access first, immediately release the stream, then start recognition.
+  const doStart = () => {
+    const m=currentMeta(), speechLang=inputLang==='en'?'en-GB':m.speechCode;
+    recognition=new SR();
+    recognition.interimResults=true; recognition.maxAlternatives=3; recognition.continuous=false;
+    recognition._lang=speechLang; recognition.lang=speechLang;
+    recognition.onstart=()=>{isListening=true;document.getElementById('mic-btn').classList.add('listening');document.getElementById('mic-ring').classList.add('pulse');setMicStatus('Listening\u2026','active');hidePreview();};
+    let interimText='';
+    recognition.onresult=(e)=>{interimText='';for(let i=e.resultIndex;i<e.results.length;i++)interimText+=e.results[i][0].transcript;if(!e.results[e.results.length-1].isFinal)setMicStatus('\uD83C\uDFA4 '+interimText,'active');};
+    recognition.onend=async()=>{
+      stopListening();
+      if(!interimText.trim()){setMicStatus('Nothing heard. Tap to try again.','');return;}
+      const spoken=interimText.trim();
+      setMicStatus('<span class="thinking-dots">Translating<span>.</span><span>.</span><span>.</span></span>','active');
+      try{
+        let targetWord,english,roman;
+        if(inputLang==='en'){targetWord=await translate(spoken,'en',m.myMemory);english=spoken;}
+        else{targetWord=spoken;english=await translate(spoken,m.myMemory,'en');}
+        roman=m.rtl?roughRomanise(targetWord):'';
+        showVoicePreview({target:targetWord,roman,english,gender:'neut'});
+        setMicStatus('Tap mic to record another','');
+        lookupGender(targetWord,m.myMemory).then(g=>{if(g)applyGender(g,'voice');}).catch(()=>{});
+      }catch(err){
+        setMicStatus('Translation failed \u2014 check connection.','error');
+        if(inputLang==='en')showVoicePreview({target:'',roman:'',english:spoken,gender:'neut'});
+        else showVoicePreview({target:spoken,roman:m.rtl?roughRomanise(spoken):'',english:'',gender:'neut'});
       }
-      roman=m.rtl?roughRomanise(targetWord):'';
-      // Show preview immediately with neut gender
-      showVoicePreview({target:targetWord,roman,english,gender:'neut'});
-      setMicStatus('Tap mic to record another','');
-      // Gender lookup non-blocking after preview is shown
-      lookupGender(targetWord,m.myMemory).then(g=>{if(g)applyGender(g,'voice');}).catch(()=>{});
-    }catch(err){
-      setMicStatus('Translation failed \u2014 check connection.','error');
-      if(inputLang==='en')showVoicePreview({target:'',roman:'',english:spoken,gender:'neut'});
-      else showVoicePreview({target:spoken,roman:m.rtl?roughRomanise(spoken):'',english:'',gender:'neut'});
-    }
+    };
+    recognition.onerror=(e)=>{
+      stopListening();
+      if(e.error==='language-not-supported'){const fb={'ur-PK':'ur','ps-AF':'ps','en-GB':'en-US'}[recognition?._lang];if(fb){setTimeout(()=>{if(recognition)return;const r2=new SR();r2._lang=fb;r2.lang=fb;recognition=r2;doStart();},200);return;}}
+      const msgs={'not-allowed':'Mic access denied — please allow microphone in browser settings.','no-speech':'Nothing heard.','network':'Network error.','service-not-allowed':'Mic not available — ensure microphone access is allowed for this site in Settings \u203a Safari \u203a Microphone.','aborted':''};
+      const msg=msgs[e.error]||'Error: '+e.error;
+      if(e.error==='not-allowed'||e.error==='service-not-allowed')showBannerOnError();
+      if(msg)setMicStatus(msg,'error');
+    };
+    try{recognition.start();}catch(e){setMicStatus('Could not start mic: '+e.message,'error');}
   };
-  recognition.onerror=(e)=>{
-    stopListening();
-    if(e.error==='language-not-supported'){const fb={'ur-PK':'ur','ps-AF':'ps','en-GB':'en-US'}[recognition._lang];if(fb){recognition._lang=fb;recognition.lang=fb;setTimeout(startListening,200);return;}}
-    const msgs={'not-allowed':'Mic denied. See setup guide above.','no-speech':'Nothing heard.','network':'Network error.','aborted':''};
-    const msg=msgs[e.error]||'Error: '+e.error;
-    if(e.error==='not-allowed')showBannerOnError();
-    if(msg)setMicStatus(msg,'error');
-  };
-  try{recognition.start();}catch(e){setMicStatus('Could not start mic: '+e.message,'error');}
+
+  // Pre-request mic permission (fixes iOS Safari service-not-allowed)
+  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({audio:true})
+      .then(stream=>{
+        // Permission granted — release the stream immediately, then start recognition
+        stream.getTracks().forEach(t=>t.stop());
+        doStart();
+      })
+      .catch(err=>{
+        // Permission denied at OS/browser level
+        setMicStatus('Mic access denied \u2014 allow microphone in your browser/system settings.','error');
+        showBannerOnError();
+      });
+  } else {
+    doStart(); // Non-iOS or older browser — go straight to recognition
+  }
 }
 
 function stopListening(){
@@ -3970,6 +3990,13 @@ function confirmClearAll(){
 function checkShowBanner(){if(localStorage.getItem('setup-dismissed'))return;if(location.protocol==='file:'||!(window.SpeechRecognition||window.webkitSpeechRecognition))document.getElementById('setup-banner').classList.add('visible');}
 function dismissBanner(){localStorage.setItem('setup-dismissed','1');document.getElementById('setup-banner').classList.remove('visible');}
 function showBannerOnError(){if(!localStorage.getItem('setup-dismissed'))document.getElementById('setup-banner').classList.add('visible');}
+
+// iOS standalone PWA detection — Web Speech API throws service-not-allowed in this mode
+const isIOSStandalone = (()=>{
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const standalone = navigator.standalone === true; // only true when launched from home screen
+  return ios && standalone;
+})();
 function copyUrl(){const url=document.getElementById('localhost-url').textContent;navigator.clipboard.writeText(url).then(()=>{const b=document.querySelector('.copy-btn');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy',2000);}).catch(()=>{const r=document.createRange();r.selectNode(document.getElementById('localhost-url'));window.getSelection().removeAllRanges();window.getSelection().addRange(r);});}
 
 // KEYBOARD
@@ -4038,25 +4065,25 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Register inline service worker for offline caching
   if('serviceWorker' in navigator && location.protocol !== 'file:'){
     const swCode = `
-const CACHE = 'lm-v1';
+const CACHE = 'lm-v2';
 const FONT_CACHE = 'lm-fonts-v1';
 const FONT_HOSTS = ['fonts.googleapis.com','fonts.gstatic.com','cdnjs.cloudflare.com'];
 
 self.addEventListener('install', e => {
-  self.skipWaiting();
+  // Don't skipWaiting — wait so we can notify the page
   e.waitUntil(caches.open(CACHE).then(c => c.add('/')));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys =>
     Promise.all(keys.filter(k=>k!==CACHE&&k!==FONT_CACHE).map(k=>caches.delete(k)))
-  ));
-  self.clients.claim();
+  ).then(()=>self.clients.claim()));
+});
+self.addEventListener('message', e => {
+  if(e.data==='SKIP_WAITING') self.skipWaiting();
 });
 self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-
-  // Fonts: cache-first, long-lived
   if(FONT_HOSTS.includes(url.hostname)){
     e.respondWith(
       caches.open(FONT_CACHE).then(fc =>
@@ -4071,11 +4098,7 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-
-  // Skip non-same-origin requests (translation APIs etc) — let them fail naturally offline
   if(url.origin !== self.location.origin) return;
-
-  // App shell: cache-first, update in background
   e.respondWith(
     caches.open(CACHE).then(c =>
       c.match(e.request).then(cached => {
@@ -4092,11 +4115,41 @@ self.addEventListener('fetch', e => {
       const swBlob = new Blob([swCode], {type:'application/javascript'});
       const swUrl  = URL.createObjectURL(swBlob);
       navigator.serviceWorker.register(swUrl, {scope:'./'})
-        .then(()=>console.log('[LM] Service worker registered'))
+        .then(reg=>{
+          console.log('[LM] Service worker registered');
+          // Check if there's already a waiting SW (page reloaded after update)
+          if(reg.waiting) showUpdateBanner(reg.waiting);
+          // New SW found during this session
+          reg.addEventListener('updatefound', ()=>{
+            const newSW = reg.installing;
+            newSW.addEventListener('statechange', ()=>{
+              if(newSW.state==='installed' && navigator.serviceWorker.controller){
+                showUpdateBanner(newSW);
+              }
+            });
+          });
+        })
         .catch(e=>console.log('[LM] SW registration skipped:', e.message));
+
+      // When SW activates after SKIP_WAITING, reload to get new version
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(!refreshing){ refreshing=true; window.location.reload(); }
+      });
     } catch(e) { /* silently skip */ }
   }
 })();
+
+// SW UPDATE BANNER
+let _waitingSW = null;
+function showUpdateBanner(sw){
+  _waitingSW = sw;
+  const banner = document.getElementById('update-banner');
+  if(banner) banner.style.display = 'flex';
+}
+function applyUpdate(){
+  if(_waitingSW) _waitingSW.postMessage('SKIP_WAITING');
+}
 
 // Migrate old category field to tags array for existing cards
 Object.values(allDecks).forEach(deck=>deck.forEach(c=>{
