@@ -1041,7 +1041,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
     <div style="padding:8px 16px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">
       <input id="emoji-custom-input" type="text" maxlength="8" placeholder="Or type / paste any emoji…"
         style="flex:1;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:7px 12px;font-size:1.2rem;font-family:'Lato',sans-serif;outline:none;text-align:center"
-        oninput="if(this.value.trim()){document.getElementById('emoji-preview').textContent=this.value.trim();}"
+        oninput="const v=this.value.trim();try{const s=[...new Intl.Segmenter().segment(v)].map(x=>x.segment);this.value=s.slice(0,4).join('');}catch(e){this.value=[...v].slice(0,4).join('');}document.getElementById('emoji-preview').textContent=this.value||'😊';" 
         onkeydown="if(event.key==='Enter')confirmEmojiPick()">
     </div>
   </div>
@@ -1124,11 +1124,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
   </div>
 </div>
 
-<div id="update-banner" style="display:none;position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--gold-dim);border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.4);white-space:nowrap">
-  <span style="font-size:.8rem;color:var(--text);font-family:'Lato',sans-serif">Update available</span>
-  <button onclick="applyUpdate()" style="background:var(--gold);border:none;border-radius:8px;color:#0f0e0b;padding:5px 12px;font-size:.78rem;font-weight:700;font-family:'Lato',sans-serif;cursor:pointer">Refresh</button>
-  <button onclick="document.getElementById('update-banner').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:1rem;cursor:pointer;padding:0 2px">✕</button>
-</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1217,6 +1213,14 @@ function isComplete(c){
   return false;
 }
 function capFirst(s){if(!s)return '';return s.charAt(0).toUpperCase()+s.slice(1);}
+
+// Returns HTML for a card's visual (emoji or photo), or empty string
+// maxH: max-height in px; fit: 'cover'|'contain' for photos
+function cardVisualHTML(card, maxH, fit){
+  if(card.emoji) return `<div style="font-size:1.5rem;line-height:1;text-align:center;padding:4px 0">${card.emoji}</div>`;
+  if(card.photo) return `<img src="${card.photo}" style="width:100%;max-height:${maxH}px;object-fit:${fit||'cover'};border-radius:8px;display:block">`;
+  return '';
+}
 
 function getTag(id){return tags.find(t=>t.id===id);}
 function getSubtag(parentId,subId){const p=getTag(parentId);return p?p.subtags.find(s=>s.id===subId):null;}
@@ -1700,7 +1704,7 @@ function startGPA1(){
       return ct.includes(fid);
     });
     if(!passes)return false;
-    if(needsPhoto&&!c.photo)return false;
+    if(needsPhoto&&!c.photo&&!c.emoji)return false;
     if(needsAudio&&!c.audio)return false;
     return true;
   });
@@ -1724,8 +1728,9 @@ function gpa1RenderGrid(pool, frontMode, backMode){
       return `<div class="gpa1-word" style="font-family:${langFont(m.code)||'inherit'};direction:${isRtl?'rtl':'ltr'};color:${col}">${card.target||''}</div>`;
     } else if(mode==='english'){
       return `<div class="gpa1-eng" style="font-size:.92rem;color:var(--text)">${card.english||''}</div>`;
-    } else if(mode==='photo'&&card.photo){
-      return `<img src="${card.photo}" style="max-height:80px;max-width:100%;object-fit:contain;border-radius:6px">`;
+    } else if(mode==='photo'){
+      if(card.emoji) return `<div style="font-size:1.8rem;line-height:1;text-align:center">${card.emoji}</div>`;
+      if(card.photo) return `<img src="${card.photo}" style="max-height:80px;max-width:100%;object-fit:contain;border-radius:6px">`;
     } else if(mode==='audio'){
       return `<span style="font-size:1.4rem">🔈</span>`;
     }
@@ -1829,7 +1834,7 @@ function startPair2(){
       return ct.includes(fid);
     });
     if(!passes)return false;
-    if(needsPhoto&&!c.photo)return false;
+    if(needsPhoto&&!c.photo&&!c.emoji)return false;
     if(needsAudio&&!c.audio)return false;
     return true;
   });
@@ -1872,8 +1877,8 @@ function pair2RenderGrid(){
       return `<span style="font-size:1.2rem;font-family:${langFont(m.code)||'inherit'};direction:${isRtl?'rtl':'ltr'};color:${col}">${card.target||''}</span>`;
     } else if(mode==='english'){
       return `<span style="font-family:'Libre Baskerville',serif;font-style:italic">${card.english||''}</span>`;
-    } else if(mode==='photo'&&card.photo){
-      return `<img src="${card.photo}" style="max-height:70px;max-width:100%;object-fit:contain;border-radius:6px">`;
+    } else if(mode==='photo'&&(card.emoji||card.photo)){
+      return card.emoji?`<span style="font-size:1.8rem;line-height:1">${card.emoji}</span>`:`<img src="${card.photo}" style="max-height:70px;max-width:100%;object-fit:contain;border-radius:6px">`;
     } else if(mode==='audio'){
       return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
     }
@@ -1986,7 +1991,7 @@ function startPick1(){
       return ct.includes(fid);
     });
     if(!passes)return false;
-    if(needsPhoto&&!c.photo)return false;
+    if(needsPhoto&&!c.photo&&!c.emoji)return false;
     if(needsAudio&&!c.audio)return false;
     return true;
   });
@@ -2024,8 +2029,11 @@ function pick1ShowQuestion(){
   } else if(frontMode==='english'){
     qText.style.display=''; qText.textContent=current.english||'';
     qText.style.fontFamily=''; qText.style.direction='ltr'; qText.style.color='var(--text)';
-  } else if(frontMode==='photo'&&current.photo){
-    qPhoto.src=current.photo; qPhoto.style.display='';
+  } else if(frontMode==='photo'&&(current.emoji||current.photo)){
+    if(current.emoji){
+      qText.style.display=''; qText.textContent=current.emoji;
+      qText.style.fontSize='5rem'; qText.style.fontFamily=''; qText.style.color='var(--text)';
+    } else { qPhoto.src=current.photo; qPhoto.style.display=''; }
   } else if(frontMode==='audio'&&current.audio){
     qAudio.style.display=''; pick1Audio=new Audio(current.audio);
     pick1Audio.play().catch(()=>{});
@@ -2042,8 +2050,8 @@ function pick1ShowQuestion(){
       inner=`<span style="font-size:1.3rem;font-family:${langFont(m.code)||'inherit'};direction:${isRtl?'rtl':'ltr'};color:${col}">${card.target||''}</span>`;
     } else if(backMode==='english'){
       inner=`<span>${card.english||''}</span>`;
-    } else if(backMode==='photo'&&card.photo){
-      inner=`<img src="${card.photo}" style="max-height:80px;max-width:100%;object-fit:contain;border-radius:8px">`;
+    } else if(backMode==='photo'&&(card.emoji||card.photo)){
+      inner=card.emoji?`<span style="font-size:1.8rem;line-height:1">${card.emoji}</span>`:`<img src="${card.photo}" style="max-height:80px;max-width:100%;object-fit:contain;border-radius:8px">`;
     } else if(backMode==='audio'){
       inner=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
     } else {
@@ -2119,7 +2127,7 @@ function addManual(){
   fe.classList.toggle('field-error',!english&&!pendingPhoto.manual);
   const cardTags=[...manualTags].filter(Boolean);
   pushCard({target,roman,english,gender:selectedManualGender,tags:cardTags,
-    photo:pendingPhoto.manual||null, audio:pendingAudio.manual||null});
+    photo:pendingPhoto.manual||null, emoji:pendingEmoji.manual||null, audio:pendingAudio.manual||null});
   ft.value=''; document.getElementById('f-roman').value=''; fe.value='';
   ft.classList.remove('field-error'); fe.classList.remove('field-error');
   clearPendingMedia('manual');
@@ -2180,7 +2188,7 @@ function renderDeck(){
     const cardTags = sortedTags.map(tagLabel).join(' ');
     const missingTarget='<em style="color:var(--incomplete);font-size:.9rem">\u2014 missing \u2014</em>';
     const missingEng='<em style="color:var(--incomplete);font-size:.8rem">\u2014 missing \u2014</em>';
-    const hasPhoto=!!c.photo, hasAudio=!!c.audio;
+    const hasPhoto=!!(c.photo||c.emoji), hasAudio=!!c.audio;
     const isSel=selectedCardIds.has(String(c.id));
     const isCrafted=!!(c.craftedFrom&&c.craftedFrom.length);
 
@@ -2191,7 +2199,9 @@ function renderDeck(){
         const src=(allDecks[currentLang]||[]).find(x=>String(x.id)===String(srcId));
         if(!src) return '';
         const sg=src.gender||'neut';
-        const inner = src.photo
+        const inner = src.emoji
+          ? `<span style="font-size:1.2rem;line-height:1;vertical-align:middle">${src.emoji}</span>`
+          : src.photo
           ? `<img src="${src.photo}" style="height:28px;object-fit:contain;border-radius:3px;vertical-align:middle">`
           : `<span class="craft-seg-word ${isRtl?'':'ltr'} ${sg}" style="${langFont(m.code)?`font-family:${langFont(m.code)}`:''}">${src.target||src.english||''}</span>`;
         return `<span class="craft-seg-box" onclick="event.stopPropagation();openCardDetail('${srcId}')" title="${src.english||''}">${inner}</span>`;
@@ -2204,7 +2214,7 @@ function renderDeck(){
     return `<div class="card-tile ${complete?'':'incomplete'} ${isSel?'sel-active':''}" data-card-id="${c.id}" onclick="event.stopPropagation()">
       ${!complete?'<div class="incomplete-badge">incomplete</div>':''}
       <button class="tile-edit-topleft" style="${isRtl?'left:8px;right:auto':'right:8px;left:auto'}" onclick="${isCrafted?`openCraftEdit('${c.id}')`:`openEdit('${c.id}')`}" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-      ${hasPhoto?`<img src="${c.photo}" style="width:100%;max-height:90px;object-fit:cover;border-radius:8px;margin-bottom:4px;cursor:pointer" onclick="openLightbox('${c.id}')" alt="">`:''}
+      ${(()=>{ if(c.emoji) return `<div style="margin-bottom:4px;text-align:center;font-size:1.5rem;line-height:1">${c.emoji}</div>`; if(c.photo) return `<img src="${c.photo}" style="width:100%;max-height:100px;object-fit:contain;border-radius:8px;margin-bottom:4px;cursor:pointer" onclick="openLightbox('${c.id}')" alt="">`; return ''; })()}
       ${targetDisplay}
       ${(!isCrafted&&c.roman)?`<div class="tile-roman">${c.roman}</div>`:''}
       <div class="tile-english">${c.english||missingEng}</div>
@@ -2270,11 +2280,36 @@ function initStudy(){
       }
     });
     if(!passes)return false;
-    if(needsPhoto&&!c.photo)return false;
+    if(needsPhoto&&!c.photo&&!c.emoji)return false;
     if(needsAudio&&!c.audio)return false;
     return true;
   }).sort(()=>Math.random()-.5);
   studyIndex=0; document.getElementById('flip-card').classList.remove('flipped'); showStudyCard();
+}
+
+// Render emoji or photo into a study face slot
+// imgId is the <img> element id; we keep a paired <div> with id imgId+'-emoji'
+function studyShowVisual(imgId, card){
+  const img = document.getElementById(imgId);
+  if(!img) return;
+  // Find or create a sibling emoji div
+  let emojiEl = document.getElementById(imgId+'-emoji');
+  if(!emojiEl){
+    emojiEl = document.createElement('div');
+    emojiEl.id = imgId+'-emoji';
+    emojiEl.className = 'study-photo';
+    emojiEl.style.cssText = 'font-size:1.5rem;line-height:1;text-align:center;display:none;background:none;border-radius:0';
+    img.parentNode.insertBefore(emojiEl, img);
+  }
+  if(card.emoji){
+    img.style.display='none';
+    emojiEl.textContent=card.emoji;
+    emojiEl.style.display='';
+  } else if(card.photo){
+    emojiEl.style.display='none';
+    img.src=card.photo;
+    img.style.display='';
+  }
 }
 
 function showStudyCard(){
@@ -2286,7 +2321,8 @@ function showStudyCard(){
 
   // hide all dynamic elements first
   ['s-target','s-roman','s-front-english','s-front-photo','s-front-audio',
-   's-back-target','s-back-roman','s-english','s-back-photo','s-back-audio'].forEach(id=>{
+   's-back-target','s-back-roman','s-english','s-back-photo','s-back-audio',
+   's-front-photo-emoji','s-back-photo-emoji'].forEach(id=>{
     const e=document.getElementById(id); if(e)e.style.display='none';
   });
 
@@ -2314,7 +2350,7 @@ function showStudyCard(){
       el.style.display=''; el.textContent=c.english||'';
     } else if(mode==='photo'){
       const imgId = isFront ? 's-front-photo' : 's-back-photo';
-      if(c.photo){const img=document.getElementById(imgId);img.src=c.photo;img.style.display='';}
+      studyShowVisual(imgId, c);
     } else if(mode==='audio'){
       const btnId = isFront ? 's-front-audio' : 's-back-audio';
       if(c.audio){document.getElementById(btnId).style.display='';}
@@ -2639,7 +2675,7 @@ function saveVoiceCard(){
   if(!target&&!english&&!hasPhoto){toast('Enter at least a target word, translation, or add a photo.');return;}
   const cardTags=[...vpTags].filter(Boolean);
   const card={target,roman,english,gender:vpGender,tags:cardTags,
-    photo:pendingPhoto.voice||null, audio:pendingAudio.voice||null};
+    photo:pendingPhoto.voice||null, emoji:pendingEmoji.voice||null, audio:pendingAudio.voice||null};
   pushCard(card);
   hidePreview(); setMicStatus('Saved! Tap mic to record another.','');
   clearPendingMedia('voice');
@@ -2670,6 +2706,7 @@ function openEdit(id){
   document.querySelectorAll('#edit-gender-row .gender-pill').forEach(p=>p.classList.remove('selected'));
   document.querySelector('#edit-gender-row .gender-pill.'+editGender).classList.add('selected');
   pendingPhoto.edit=card.photo||null;
+  pendingEmoji.edit=card.emoji||null;
   pendingAudio.edit=card.audio||null;
   renderMediaStrip('edit');
   document.getElementById('edit-modal').classList.add('visible');
@@ -2699,7 +2736,7 @@ function saveEdit(){
   if(!card)return;
   card.target=target; card.roman=roman; card.english=english; card.gender=editGender;
   card.tags=[...editTags].filter(Boolean);
-  card.photo=pendingPhoto.edit||null; card.audio=pendingAudio.edit||null;
+  card.photo=pendingPhoto.edit||null; card.emoji=pendingEmoji.edit||null; card.audio=pendingAudio.edit||null;
   save(); renderDeckCatBar(); renderDeck(); closeEdit();
   toast(isComplete(card)?'Card updated!':'Saved \u2014 still incomplete.');
 }
@@ -2710,6 +2747,7 @@ function saveEdit(){
 
 // pending state per context: 'manual' | 'edit' | 'voice'
 const pendingPhoto = { manual:null, edit:null, voice:null, craft:null };
+const pendingEmoji = { manual:null, edit:null, voice:null, craft:null };
 const pendingAudio = { manual:null, edit:null, voice:null, craft:null };
 
 // active card recording per context
@@ -2741,19 +2779,24 @@ function handlePhotoFile(input, ctx){
 }
 
 function renderMediaStrip(ctx){
-  const stripId = ctx==='edit'?'edit-media-strip':ctx==='voice'?'vp-media-strip':'f-media-strip';
+  const stripId = ctx==='edit'?'edit-media-strip':ctx==='voice'?'vp-media-strip':ctx==='craft'?'craft-media-strip':'f-media-strip';
   const strip=document.getElementById(stripId); if(!strip)return;
   let html='';
-  if(pendingPhoto[ctx]){
+  if(pendingEmoji[ctx]){
+    html+=`<div class="media-thumb" style="position:relative">
+      <div style="font-size:2.4rem;line-height:1;padding:4px 8px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;cursor:default">${pendingEmoji[ctx]}</div>
+      <button class="remove-media" onclick="removeEmoji('${ctx}')">✕</button>
+    </div>`;
+  } else if(pendingPhoto[ctx]){
     html+=`<div class="media-thumb">
       <img src="${pendingPhoto[ctx]}" onclick="openLightboxData('${ctx}')" alt="photo">
-      <button class="remove-media" onclick="removePhoto('${ctx}')">\u2715</button>
+      <button class="remove-media" onclick="removePhoto('${ctx}')">✕</button>
     </div>`;
   }
   if(pendingAudio[ctx]){
     html+=`<div class="audio-chip" onclick="playBase64AudioData(pendingAudio['${ctx}'])">
-      &#x1F508; Recording
-      <button class="remove-audio" onclick="event.stopPropagation();removeAudio('${ctx}')">\u2715</button>
+      🔈 Recording
+      <button class="remove-audio" onclick="event.stopPropagation();removeAudio('${ctx}')">✕</button>
     </div>`;
   }
   strip.innerHTML=html;
@@ -2765,6 +2808,12 @@ function removePhoto(ctx){
   [b.camera,b.gallery].forEach(id=>{ const el=document.getElementById(id); if(el)el.classList.remove('has-media'); });
 }
 
+function removeEmoji(ctx){
+  pendingEmoji[ctx]=null; renderMediaStrip(ctx);
+  const b=CTX_BTNS[ctx];
+  if(b)[b.camera,b.gallery].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('has-media');});
+}
+
 function removeAudio(ctx){
   pendingAudio[ctx]=null; renderMediaStrip(ctx);
   const el=document.getElementById(CTX_BTNS[ctx].rec);
@@ -2772,7 +2821,7 @@ function removeAudio(ctx){
 }
 
 function clearPendingMedia(ctx){
-  pendingPhoto[ctx]=null; pendingAudio[ctx]=null;
+  pendingPhoto[ctx]=null; pendingAudio[ctx]=null; pendingEmoji[ctx]=null;
   renderMediaStrip(ctx);
   const b=CTX_BTNS[ctx];
   [b.camera,b.gallery].forEach(id=>{ const el=document.getElementById(id); if(el)el.classList.remove('has-media'); });
@@ -3114,13 +3163,22 @@ function emojiToDataUrl(emoji){
   return canvas.toDataURL('image/png');
 }
 
+function clampEmoji(str){
+  // Cap at 4 grapheme clusters (visible emoji characters)
+  try {
+    const segs = [...new Intl.Segmenter().segment(str)].map(s=>s.segment);
+    return segs.slice(0,4).join('');
+  } catch(e){ return [...str].slice(0,4).join(''); }
+}
+
 function confirmEmojiPick(){
   const ci = document.getElementById('emoji-custom-input');
   const custom = ci ? ci.value.trim() : '';
-  const emoji = custom || document.getElementById('emoji-preview').textContent.trim();
-  if(!emoji || emoji === '😊'){ toast('Tap an emoji first.'); return; }
-  const dataUrl = emojiToDataUrl(emoji);
-  pendingPhoto[emojiCtx] = dataUrl;
+  const raw = custom || document.getElementById('emoji-preview').textContent.trim();
+  if(!raw || raw === '😊'){ toast('Tap an emoji first.'); return; }
+  const emoji = clampEmoji(raw);
+  pendingEmoji[emojiCtx] = emoji;
+  pendingPhoto[emojiCtx] = null; // emoji replaces any photo
   renderMediaStrip(emojiCtx);
   const b = CTX_BTNS[emojiCtx];
   if(b){ [b.camera, b.gallery].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.add('has-media'); }); }
@@ -3316,7 +3374,7 @@ function renderCraftCards(){
     const g = c.gender||'neut';
     const isUsed = usedSet.has(c.id);
     let inner = '';
-    if(c.photo) inner = `<img src="${c.photo}" class="craft-card-emoji" alt="">`;
+    if(c.emoji||c.photo) inner = cardVisualHTML(c,80,'contain');
     inner += `<div class="craft-card-target ${isRtl?'':'ltr'} ${g}" style="${langFont(m.code)?`font-family:${langFont(m.code)}`:''}">${c.target||c.english||''}</div>`;
     if(!c.photo && c.english && c.target) inner += `<div class="craft-card-en">${c.english}</div>`;
     return `<div class="craft-card ${isUsed?'craft-used':''}" draggable="true"
@@ -3493,7 +3551,8 @@ function renderCraftSlotRow(){
 
     if(slot.cardId && card){
       let wordHtml = '';
-      if(card.photo) wordHtml = `<img src="${card.photo}" style="height:34px;object-fit:contain;border-radius:4px">`;
+      if(card.emoji) wordHtml = `<span style="font-size:1.5rem;line-height:1">${card.emoji}</span>`;
+      else if(card.photo) wordHtml = `<img src="${card.photo}" style="height:34px;object-fit:contain;border-radius:4px">`;
       else wordHtml = `<div class="craft-slot-word ${isRtl?'':'ltr'} ${g}" style="${langFont(m.code)?`font-family:${langFont(m.code)}`:''}">${card.target||card.english||''}</div>`;
       html += `<div class="craft-slot filled" data-slot-idx="${idx}"
         ondragover="craftSlotDragOver(event,${idx})" ondragleave="craftSlotDragLeave(event)" ondrop="craftSlotDrop(event,${idx})">
@@ -3605,13 +3664,13 @@ function saveCraftCard(){
     if(existing){
       existing.target=target; existing.english=english; existing.gender=craftGender;
       existing.tags=cardTags; existing.craftedFrom=componentIds;
-      existing.photo=pendingPhoto.craft||null; existing.audio=pendingAudio.craft||null;
+      existing.photo=pendingPhoto.craft||null; existing.emoji=pendingEmoji.craft||null; existing.audio=pendingAudio.craft||null;
       save(); toast('Crafted card updated!');
     }
     craftEditingId=null;
   } else {
     pushCard({ target, english, roman:'', gender:craftGender, tags:cardTags,
-      photo:pendingPhoto.craft||null, audio:pendingAudio.craft||null, craftedFrom:componentIds });
+      photo:pendingPhoto.craft||null, emoji:pendingEmoji.craft||null, audio:pendingAudio.craft||null, craftedFrom:componentIds });
     toast('Crafted card saved!');
   }
   clearCraft();
@@ -4070,7 +4129,7 @@ const FONT_CACHE = 'lm-fonts-v1';
 const FONT_HOSTS = ['fonts.googleapis.com','fonts.gstatic.com','cdnjs.cloudflare.com'];
 
 self.addEventListener('install', e => {
-  // Don't skipWaiting — wait so we can notify the page
+  self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then(c => c.add('/')));
 });
 self.addEventListener('activate', e => {
@@ -4140,16 +4199,7 @@ self.addEventListener('fetch', e => {
   }
 })();
 
-// SW UPDATE BANNER
-let _waitingSW = null;
-function showUpdateBanner(sw){
-  _waitingSW = sw;
-  const banner = document.getElementById('update-banner');
-  if(banner) banner.style.display = 'flex';
-}
-function applyUpdate(){
-  if(_waitingSW) _waitingSW.postMessage('SKIP_WAITING');
-}
+
 
 // Migrate old category field to tags array for existing cards
 Object.values(allDecks).forEach(deck=>deck.forEach(c=>{
