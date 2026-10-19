@@ -2602,7 +2602,7 @@ function startListening(){
     recognition.onerror=(e)=>{
       stopListening();
       if(e.error==='language-not-supported'){const fb={'ur-PK':'ur','ps-AF':'ps','en-GB':'en-US'}[recognition?._lang];if(fb){setTimeout(()=>{if(recognition)return;const r2=new SR();r2._lang=fb;r2.lang=fb;recognition=r2;doStart();},200);return;}}
-      const msgs={'not-allowed':'Mic access denied — please allow microphone in browser settings.','no-speech':'Nothing heard.','network':'Network error.','service-not-allowed':'Mic not available — ensure microphone access is allowed for this site in Settings \u203a Safari \u203a Microphone.','aborted':''};
+      const msgs={'not-allowed':'Mic access denied — allow microphone for this site in Settings \u203a Safari \u203a Microphone.','no-speech':'Nothing heard.','network':'Network error — check connection.','service-not-allowed':'Speech service unavailable — ensure Dictation is enabled in Settings \u203a General \u203a Keyboard.','aborted':''};
       const msg=msgs[e.error]||'Error: '+e.error;
       if(e.error==='not-allowed'||e.error==='service-not-allowed')showBannerOnError();
       if(msg)setMicStatus(msg,'error');
@@ -2610,22 +2610,9 @@ function startListening(){
     try{recognition.start();}catch(e){setMicStatus('Could not start mic: '+e.message,'error');}
   };
 
-  // Pre-request mic permission (fixes iOS Safari service-not-allowed)
-  if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-    navigator.mediaDevices.getUserMedia({audio:true})
-      .then(stream=>{
-        // Permission granted — release the stream immediately, then start recognition
-        stream.getTracks().forEach(t=>t.stop());
-        doStart();
-      })
-      .catch(err=>{
-        // Permission denied at OS/browser level
-        setMicStatus('Mic access denied \u2014 allow microphone in your browser/system settings.','error');
-        showBannerOnError();
-      });
-  } else {
-    doStart(); // Non-iOS or older browser — go straight to recognition
-  }
+  // Call recognition.start() synchronously within the gesture handler.
+  // Any async gap (e.g. getUserMedia) breaks iOS WebKit's gesture chain → service-not-allowed.
+  doStart();
 }
 
 function stopListening(){
