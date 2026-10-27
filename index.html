@@ -410,6 +410,12 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .cat-edit-del:hover { color:#e06c8a; }
 .cat-edit-del:disabled { opacity:.3; cursor:default; }
 
+/* undo button */
+#undo-btn:not(:disabled) { color:var(--gold); }
+#undo-btn:disabled { opacity:.3; cursor:default; }
+@keyframes undo-flash { 0%{color:var(--gold);transform:scale(1)} 30%{color:#e06c8a;transform:scale(1.3)} 100%{color:var(--gold);transform:scale(1)} }
+#undo-btn.flash { animation:undo-flash .5s ease-out; }
+
 /* bottom padding for scrollable panels to clear footer */
 #panel-add { padding-bottom:80px; }
 #panel-deck > div:last-child { padding-bottom:80px; }
@@ -434,6 +440,9 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
   <div class="header-top">
     <button onclick="openSettings()" style="background:none;border:none;cursor:pointer;color:var(--gold);font-size:1.1rem;padding:0;line-height:1;position:absolute;left:0" title="Settings">&#x26CF;&#xFE0F;</button>
     <div class="logo">Language <em>Miner</em></div>
+    <button id="undo-btn" onclick="doUndo()" disabled title="Undo" style="background:none;border:none;cursor:pointer;color:var(--muted);padding:0;line-height:1;position:absolute;right:0;display:flex;align-items:center;transition:color .2s">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M15.79 7H7V5.04c0-.42-.48-.65-.81-.39l-3.7 2.96a.5.5 0 0 0 0 .78l3.7 2.96c.33.26.81.03.81-.39V9h8.82c2.09 0 3.96 1.52 4.16 3.6.23 2.38-1.64 4.4-3.98 4.4H8c-.55 0-1 .45-1 1s.45 1 1 1h8c3.57 0 6.42-3.13 5.95-6.79C21.56 9.19 18.84 7 15.79 7"/></svg>
+    </button>
   </div>
   <div class="lang-bar-wrap">
     <div class="lang-bar" id="lang-bar"></div>
@@ -2136,6 +2145,7 @@ function addManual(){
 
 // CARDS
 function pushCard(card){
+  pushUndo(false);
   if(!allDecks[currentLang])allDecks[currentLang]=[];
   allDecks[currentLang].push({...card,id:Date.now()+'_'+Math.random()});
   save();
@@ -2721,6 +2731,7 @@ function saveEdit(){
   if(!target&&!english&&!pendingPhoto.edit){toast('Enter at least one field.');return;}
   const card=(allDecks[currentLang]||[]).find(c=>String(c.id)===String(editingId));
   if(!card)return;
+  pushUndo(false);
   card.target=target; card.roman=roman; card.english=english; card.gender=editGender;
   card.tags=[...editTags].filter(Boolean);
   card.photo=pendingPhoto.edit||null; card.emoji=pendingEmoji.edit||null; card.audio=pendingAudio.edit||null;
@@ -2883,6 +2894,42 @@ function openLightboxData(ctx){
 }
 function closeLightbox(){document.getElementById('photo-lightbox').classList.remove('visible');}
 
+// UNDO SYSTEM (max 3 steps, per-language deck snapshots)
+const undoStack = [];
+const UNDO_MAX = 3;
+
+function pushUndo(flash){
+  if(!currentLang) return;
+  // Deep copy current deck
+  undoStack.push({
+    lang: currentLang,
+    deck: JSON.parse(JSON.stringify(allDecks[currentLang]||[]))
+  });
+  if(undoStack.length > UNDO_MAX) undoStack.shift();
+  const btn = document.getElementById('undo-btn');
+  if(btn){
+    btn.disabled = false;
+    if(flash){
+      btn.classList.remove('flash');
+      void btn.offsetWidth; // reflow to restart animation
+      btn.classList.add('flash');
+      setTimeout(()=>btn.classList.remove('flash'), 500);
+    }
+  }
+}
+
+function doUndo(){
+  if(!undoStack.length) return;
+  const snap = undoStack.pop();
+  allDecks[snap.lang] = snap.deck;
+  save();
+  if(snap.lang !== currentLang) switchLang(snap.lang);
+  else { renderDeckCatBar(); renderDeckSubtagBar(); renderDeck(); }
+  const btn = document.getElementById('undo-btn');
+  if(btn) btn.disabled = undoStack.length === 0;
+  toast('Undone.');
+}
+
 // SELECTION SYSTEM
 // selectedCardIds persists across searches — it holds IDs of all selected cards
 // regardless of current filter/search view.
@@ -2976,6 +3023,7 @@ function cycleBulkTag(tid){
 }
 
 function applyBulkTags(){
+  pushUndo(false);
   const selCards=currentDeck().filter(c=>selectedCardIds.has(String(c.id)));
   selCards.forEach(card=>{
     let cardTags=new Set(card.tags||['general']);
@@ -2994,6 +3042,7 @@ function applyBulkTags(){
 function deleteBulkSelected(){
   const count=selectedCardIds.size;
   if(!count) return;
+  pushUndo(true);
   allDecks[currentLang]=(allDecks[currentLang]||[]).filter(c=>!selectedCardIds.has(String(c.id)));
   save(); selectedCardIds.clear(); closeBulkEdit(); renderDeckCatBar(); renderDeck();
   toast(`Deleted ${count} card${count>1?'s':''}.`);
@@ -3645,6 +3694,7 @@ function saveCraftCard(){
   const cardTags = [...craftTags, CRAFTED_TAG];
   const componentIds = filledSlots.map(s=>s.cardId);
 
+  pushUndo(false);
   if(craftEditingId){
     // Update existing crafted card
     const existing=(allDecks[currentLang]||[]).find(c=>String(c.id)===craftEditingId);
@@ -3673,6 +3723,7 @@ function clearCraft(){
 
 // DELETE GUARD for crafted cards
 function deleteCard(id){
+  pushUndo(true);
   // Check if any crafted cards reference this card
   const crafted = (allDecks[currentLang]||[]).filter(c=>c.craftedFrom&&c.craftedFrom.includes(String(id)));
   if(crafted.length){
