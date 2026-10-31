@@ -510,7 +510,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
       <div class="preview-row">
         <div class="preview-field">
           <label id="vp-target-label">Target</label>
-          <input id="vp-target-edit" type="text" dir="rtl">
+          <input id="vp-target-edit" type="text" dir="rtl" oninput="checkDuplicate('vp')">
         </div>
         <div class="preview-field" id="vp-roman-field">
           <label>Romanisation</label>
@@ -542,6 +542,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
           <div class="gender-pill neut selected" onclick="setVpGender('neut')">&mdash;</div>
         </div>
       </div>
+      <div id="vp-dup-warn" style="display:none;padding:6px 10px;border-radius:8px;background:rgba(201,168,76,.1);border:1px solid var(--gold-dim);font-size:.8rem;color:var(--gold);cursor:pointer;text-align:center;margin-top:4px" onclick="goToDuplicate('vp')">Duplicate found. View &#x2192;</div>
       <div class="preview-actions">
         <button class="btn-primary" style="margin-top:0;flex:1" onclick="saveVoiceCard()">&#x2713; Save Card</button>
         <button class="btn-outline" style="margin-top:0" onclick="discardVoice()">&#x2715;</button>
@@ -576,7 +577,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
     <div class="card-form">
       <div>
         <label id="f-target-label">Target Word</label>
-        <input id="f-target" type="text" placeholder="&#x06AF;&#x0627;&#x0691;&#x06CC;" dir="rtl">
+        <input id="f-target" type="text" placeholder="&#x06AF;&#x0627;&#x0691;&#x06CC;" dir="rtl" oninput="checkDuplicate('f')">
       </div>
       <div id="f-roman-wrap">
         <label>Romanisation</label>
@@ -608,6 +609,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
         </div>
       </div>
     </div>
+    <div id="f-dup-warn" style="display:none;padding:6px 10px;border-radius:8px;background:rgba(201,168,76,.1);border:1px solid var(--gold-dim);font-size:.8rem;color:var(--gold);cursor:pointer;text-align:center;margin-top:4px" onclick="goToDuplicate('f')">Duplicate found. View &#x2192;</div>
     <button class="btn-primary" onclick="addManual()">Save Card</button>
     <!-- hidden file inputs -->
     <input type="file" id="f-camera-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFile(this,'manual')">
@@ -2138,6 +2140,7 @@ function addManual(){
   pushCard({target,roman,english,gender:selectedManualGender,tags:cardTags,
     photo:pendingPhoto.manual||null, emoji:pendingEmoji.manual||null, audio:pendingAudio.manual||null});
   ft.value=''; document.getElementById('f-roman').value=''; fe.value='';
+  checkDuplicate('f');
   ft.classList.remove('field-error'); fe.classList.remove('field-error');
   clearPendingMedia('manual');
   toast(isComplete({target,english,photo:pendingPhoto.manual,tags:cardTags})?'Card added!':'Incomplete card saved \u2014 finish it in the Deck.');
@@ -2464,6 +2467,7 @@ async function retranslateVoice(direction) {
       if (!english) { toast('Enter a translation first.'); return; }
       const target = await translate(english, 'en', m.myMemory);
       document.getElementById('vp-target-edit').value = target;
+      checkDuplicate('vp');
       document.getElementById('vp-target').textContent = target;
       if (m.rtl) document.getElementById('vp-roman').value = roughRomanise(target);
       lookupGender(target, m.myMemory).then(g=>{if(g)applyGender(g,'voice');}).catch(()=>{});
@@ -2489,6 +2493,7 @@ async function retranslateManual(direction) {
       if (!english) { toast('Enter a translation first.'); return; }
       const target = await translate(english, 'en', m.myMemory);
       document.getElementById('f-target').value = target;
+      checkDuplicate('f');
       document.getElementById('f-target').classList.remove('field-error');
       if (m.rtl) document.getElementById('f-roman').value = roughRomanise(target);
       lookupGender(target, m.myMemory).then(g=>{if(g)applyGender(g,'manual');}).catch(()=>{});
@@ -2651,9 +2656,10 @@ function showVoicePreview(data){
   const gp=document.querySelector('#vp-gender-row .gender-pill.'+vpGender);if(gp)gp.classList.add('selected');
   tEl.style.color=vpGender==='masc'?'var(--masc)':vpGender==='fem'?'var(--fem)':'var(--text)';
   document.getElementById('voice-preview').classList.add('visible');
+  checkDuplicate('vp');
 }
 
-function hidePreview(){document.getElementById('voice-preview').classList.remove('visible');}
+function hidePreview(){document.getElementById('voice-preview').classList.remove('visible');const w=document.getElementById('vp-dup-warn');if(w)w.style.display='none';dupMatchId.vp=null;}
 
 function setVpGender(g){
   vpGender=g;
@@ -2893,6 +2899,33 @@ function openLightboxData(ctx){
   if(pendingPhoto[ctx]){document.getElementById('photo-lightbox-img').src=pendingPhoto[ctx];document.getElementById('photo-lightbox').classList.add('visible');}
 }
 function closeLightbox(){document.getElementById('photo-lightbox').classList.remove('visible');}
+
+// DUPLICATE DETECTION
+// prefix: 'f' (manual form) or 'vp' (voice preview)
+const dupMatchId = { f:null, vp:null };
+
+function normalizeWord(s){
+  return (s||'').normalize('NFC').trim().toLowerCase();
+}
+
+function checkDuplicate(prefix){
+  const input = document.getElementById(prefix==='f' ? 'f-target' : 'vp-target-edit');
+  const warn  = document.getElementById(prefix+'-dup-warn');
+  if(!input || !warn) return;
+  const val = normalizeWord(input.value);
+  dupMatchId[prefix] = null;
+  if(val){
+    const match = currentDeck().find(c => normalizeWord(c.target) === val);
+    if(match) dupMatchId[prefix] = String(match.id);
+  }
+  warn.style.display = dupMatchId[prefix] ? '' : 'none';
+}
+
+function goToDuplicate(prefix){
+  const id = dupMatchId[prefix];
+  if(!id) return;
+  openCardDetail(id);
+}
 
 // UNDO SYSTEM (max 3 steps, per-language deck snapshots)
 const undoStack = [];
