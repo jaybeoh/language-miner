@@ -410,6 +410,23 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .cat-edit-del:hover { color:#e06c8a; }
 .cat-edit-del:disabled { opacity:.3; cursor:default; }
 
+/* PROGRESS LEVELS */
+.level-filter-wrap { display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 20px 0; flex-shrink:0; width:100%; }
+.level-filter-label { font-size:.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+.level-filter { display:flex; gap:6px; align-items:center; }
+.lvl-btn { width:30px; height:30px; border-radius:50%; border:1.5px solid transparent; background:none; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:border-color .18s, background .18s; }
+.lvl-btn.active { border-color:var(--gold); background:rgba(201,168,76,.12); }
+.lvl-shape { display:block; width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.lvl-shape.gem { border-radius:0; -webkit-clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); }
+.lvl-badge { position:absolute; top:14px; left:0; right:0; display:flex; justify-content:center; pointer-events:none; }
+.lvl-badge .lvl-shape { width:7px; height:7px; }
+.lvl-badge.pop { animation:lvl-pop .4s ease-out; }
+@keyframes lvl-pop { 0%{transform:scale(1)} 40%{transform:scale(1.7)} 100%{transform:scale(1)} }
+.study-swipe-area { position:relative; width:100%; max-width:420px; }
+.study-swipe-area .flip-scene { touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+.swipe-hint { position:absolute; top:50%; width:13px; height:13px; margin-top:-6.5px; opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
+#panel-study { overflow-x:hidden; overflow-x:clip; }
+
 /* undo button */
 #undo-btn:not(:disabled) { color:var(--gold); }
 #undo-btn:disabled { opacity:.3; cursor:default; }
@@ -697,13 +714,21 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
       </select>
     </div>
   </div>
+  <div class="level-filter-wrap">
+    <div class="level-filter-label">Progress</div>
+    <div class="level-filter" id="study-level-filter"></div>
+  </div>
   <div class="study-inner">
     <div class="progress-bar-wrap">
       <div class="progress-bar-fill" id="study-progress" style="width:0%"></div>
     </div>
+    <div class="study-swipe-area">
+    <div class="swipe-hint left lvl-shape" id="swipe-hint-left"></div>
+    <div class="swipe-hint right lvl-shape" id="swipe-hint-right"></div>
     <div class="flip-scene" onclick="flipCard()">
       <div class="flip-card" id="flip-card">
         <div class="flip-face flip-front" id="study-front-face">
+          <div class="lvl-badge"></div>
           <div class="study-target neut" id="s-target" style="display:none"></div>
           <div class="study-roman" id="s-roman" style="display:none"></div>
           <div class="study-english" id="s-front-english" style="display:none"></div>
@@ -712,6 +737,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
           <div class="hint-text">tap to reveal</div>
         </div>
         <div class="flip-face flip-back" id="study-back-face">
+          <div class="lvl-badge"></div>
           <div class="study-target neut" id="s-back-target" style="display:none"></div>
           <div class="study-roman" id="s-back-roman" style="display:none"></div>
           <div class="study-english" id="s-english" style="display:none"></div>
@@ -720,6 +746,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
           <div class="hint-text">tap to continue</div>
         </div>
       </div>
+    </div>
     </div>
     <div class="study-controls">
       <button class="study-btn" onclick="studyPrev()">&larr; Prev</button>
@@ -814,6 +841,11 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
         <option value="audio">Recording</option>
       </select>
     </div>
+  </div>
+
+  <div class="level-filter-wrap">
+    <div class="level-filter-label">Progress</div>
+    <div class="level-filter" id="play-level-filter"></div>
   </div>
 
   <!-- Game grid -->
@@ -1692,8 +1724,8 @@ function showPanel(name,btn){
   if(fb)fb.classList.add('active');
   if(name==='add'){ renderTagSelectWrap('manual'); renderTagSelectWrap('voice'); }
   if(name==='deck'){renderDeckCatBar();renderDeckSubtagBar();renderDeck();}
-  if(name==='study'){renderStudyCatBar();renderStudySubtagBar();initStudy();}
-  if(name==='play'){renderPlayCatBar();}
+  if(name==='study'){renderStudyCatBar();renderStudySubtagBar();renderLevelFilter('study');initStudySwipe();initStudy();}
+  if(name==='play'){renderPlayCatBar();renderLevelFilter('play');}
   if(name==='craft'){initCraftPanel();}
 }
 
@@ -1709,6 +1741,7 @@ function startGPA1(){
   const parentsWithSubs=new Set([...playTagFilter].filter(id=>id.includes('/')).map(id=>id.split('/')[0]));
   let pool=currentDeck().filter(c=>{
     if(!isComplete(c))return false;
+    if(!levelMatches(c, playLevelFilter))return false;
     const ct=c.tags||['general'];
     const passes=[...playTagFilter].some(fid=>{
       if(!fid.includes('/')){if(parentsWithSubs.has(fid))return false;return ct.includes(fid);}
@@ -1839,6 +1872,7 @@ function startPair2(){
   const parentsWithSubs=new Set([...playTagFilter].filter(id=>id.includes('/')).map(id=>id.split('/')[0]));
   let pool=currentDeck().filter(c=>{
     if(!isComplete(c))return false;
+    if(!levelMatches(c, playLevelFilter))return false;
     const ct=c.tags||['general'];
     const passes=[...playTagFilter].some(fid=>{
       if(!fid.includes('/')){if(parentsWithSubs.has(fid))return false;return ct.includes(fid);}
@@ -1996,6 +2030,7 @@ function startPick1(){
   const parentsWithSubs=new Set([...playTagFilter].filter(id=>id.includes('/')).map(id=>id.split('/')[0]));
   let pool=currentDeck().filter(c=>{
     if(!isComplete(c))return false;
+    if(!levelMatches(c, playLevelFilter))return false;
     const ct=c.tags||['general'];
     const passes=[...playTagFilter].some(fid=>{
       if(!fid.includes('/')){if(parentsWithSubs.has(fid))return false;return ct.includes(fid);}
@@ -2150,7 +2185,7 @@ function addManual(){
 function pushCard(card){
   pushUndo(false);
   if(!allDecks[currentLang])allDecks[currentLang]=[];
-  allDecks[currentLang].push({...card,id:Date.now()+'_'+Math.random()});
+  allDecks[currentLang].push({level:0,...card,id:Date.now()+'_'+Math.random()});
   save();
 }
 
@@ -2276,6 +2311,7 @@ function initStudy(){
 
   studyOrder=currentDeck().filter(c=>{
     if(!isComplete(c))return false;
+    if(!levelMatches(c, studyLevelFilter))return false;
     const cardTags=c.tags||['general'];
     // For each filter entry, check if card qualifies
     const passes=[...studyTagFilter].some(filterTag=>{
@@ -2339,6 +2375,8 @@ function showStudyCard(){
     const e=document.getElementById(id); if(e)e.style.display='none';
   });
 
+  updateLevelBadges(total ? studyOrder[studyIndex] : null);
+
   if(!total){
     const t=document.getElementById('s-target'); t.style.display=''; t.textContent='\u2014'; t.className='study-target neut';
     document.getElementById('s-front-english').style.display='';
@@ -2380,7 +2418,7 @@ function playCardAudio(face){
   if(c&&c.audio) playBase64AudioData(c.audio);
 }
 
-function flipCard(){document.getElementById('flip-card').classList.toggle('flipped');}
+function flipCard(){if(swipeBlockClick)return;document.getElementById('flip-card').classList.toggle('flipped');}
 function studyNext(){if(!studyOrder.length)return;studyIndex=(studyIndex+1)%studyOrder.length;showStudyCard();}
 function studyPrev(){if(!studyOrder.length)return;studyIndex=(studyIndex-1+studyOrder.length)%studyOrder.length;showStudyCard();}
 
@@ -2900,6 +2938,159 @@ function openLightboxData(ctx){
 }
 function closeLightbox(){document.getElementById('photo-lightbox').classList.remove('visible');}
 
+// ═══════════════════════════════════
+// PROGRESS LEVELS (bronze / silver / gold / gem)
+// ═══════════════════════════════════
+const LEVEL_NAMES  = ['Bronze','Silver','Gold','Gem'];
+const LEVEL_COLORS = ['#cd7f32','#b9bdc6','#f2c230','#ffffff'];
+const studyLevelFilter = new Set();
+const playLevelFilter  = new Set();
+
+// Cards without a stored level count as bronze
+function cardLevel(c){
+  const l = parseInt(c && c.level, 10);
+  return isNaN(l) ? 0 : Math.max(0, Math.min(LEVEL_NAMES.length-1, l));
+}
+function levelMatches(c, set){ return set.size === 0 || set.has(cardLevel(c)); }
+function levelShapeHTML(level){
+  return `<span class="lvl-shape ${level===3?'gem':''}" style="background:${LEVEL_COLORS[level]}"></span>`;
+}
+
+function levelSet(ctx){ return ctx==='study' ? studyLevelFilter : playLevelFilter; }
+
+function renderLevelFilter(ctx){
+  const el = document.getElementById(ctx+'-level-filter'); if(!el) return;
+  const set = levelSet(ctx);
+  let html = '';
+  LEVEL_NAMES.forEach((name,i)=>{
+    html += `<button class="lvl-btn ${set.has(i)?'active':''}" onclick="toggleLevelFilter('${ctx}',${i})" title="${name}">${levelShapeHTML(i)}</button>`;
+  });
+  el.innerHTML = html;
+}
+function toggleLevelFilter(ctx, i){
+  const set = levelSet(ctx);
+  if(set.has(i)) set.delete(i); else set.add(i);
+  renderLevelFilter(ctx);
+  if(ctx==='study') initStudy();
+}
+// Level indicator on both faces of the study card + the adjacent-level hints at the edges
+const HINT_REST_OPACITY = 0.5;
+function setSwipeHint(side, level, scale, opacity){
+  const el = document.getElementById('swipe-hint-'+side); if(!el) return;
+  if(level === null){ el.style.opacity = 0; return; }
+  el.style.background = LEVEL_COLORS[level];
+  el.classList.toggle('gem', level === 3);
+  el.style.opacity = opacity === undefined ? HINT_REST_OPACITY : opacity;
+  el.style.transform = `scale(${scale||1})`;
+}
+// Centre each hint exactly on the left / right edge of the window
+function positionSwipeHints(){
+  const area = document.querySelector('#panel-study .study-swipe-area');
+  const l = document.getElementById('swipe-hint-left');
+  const r = document.getElementById('swipe-hint-right');
+  if(!area || !l || !r) return;
+  const rect = area.getBoundingClientRect();
+  if(!rect.width) return;               // panel not visible
+  const winW = document.documentElement.clientWidth;
+  const half = (l.offsetWidth || 13) / 2;
+  l.style.left  = (-rect.left - half) + 'px';
+  r.style.left  = 'auto';
+  r.style.right = (-(winW - rect.right) - half) + 'px';
+}
+function updateLevelBadges(card){
+  const live = card ? currentDeck().find(x=>String(x.id)===String(card.id)) : null;
+  const src = live || card;
+  document.querySelectorAll('.lvl-badge').forEach(b=>{
+    if(!src){ b.style.display='none'; b.innerHTML=''; return; }
+    b.style.display = 'flex';
+    b.innerHTML = levelShapeHTML(cardLevel(src));
+  });
+  const lv = src ? cardLevel(src) : null;
+  setSwipeHint('left',  lv !== null && lv > 0 ? lv-1 : null);
+  setSwipeHint('right', lv !== null && lv < LEVEL_NAMES.length-1 ? lv+1 : null);
+  positionSwipeHints();
+}
+
+// Swipe right = upgrade, swipe left = downgrade
+let swipeState = null, swipeBlockClick = false;
+const SWIPE_THRESHOLD = 80;
+
+function swipeTargetLevel(dir){
+  const cur = studyOrder[studyIndex]; if(!cur) return null;
+  const live = currentDeck().find(x=>String(x.id)===String(cur.id)); if(!live) return null;
+  const to = cardLevel(live) + dir;
+  return (to < 0 || to >= LEVEL_NAMES.length) ? null : to;
+}
+
+function applySwipeVisual(scene, dx){
+  const target = swipeTargetLevel(dx > 0 ? 1 : -1);
+  const eff = target === null ? dx*0.3 : dx;   // rubber band when there is nowhere to go
+  scene.style.transform = `translateX(${eff}px) rotate(${eff*0.03}deg)`;
+  const grow = 1 + Math.min(1, Math.abs(dx)/SWIPE_THRESHOLD) * 0.5;
+  const cur = studyOrder[studyIndex];
+  const live = cur ? currentDeck().find(x=>String(x.id)===String(cur.id)) : null;
+  if(!live) return;
+  const lv = cardLevel(live);
+  // the hint on the side being swiped towards lights up fully
+  setSwipeHint('left',  lv > 0 ? lv-1 : null, dx < 0 ? grow : 1, dx < 0 ? 1 : HINT_REST_OPACITY);
+  setSwipeHint('right', lv < LEVEL_NAMES.length-1 ? lv+1 : null, dx > 0 ? grow : 1, dx > 0 ? 1 : HINT_REST_OPACITY);
+}
+
+function changeCardLevel(dir){
+  const cur = studyOrder[studyIndex]; if(!cur) return;
+  const live = currentDeck().find(x=>String(x.id)===String(cur.id)); if(!live) return;
+  const to = swipeTargetLevel(dir); if(to === null) return;
+  live.level = to; cur.level = to;
+  save();
+  document.querySelectorAll('.lvl-badge').forEach(b=>{
+    b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  });
+}
+
+function finishSwipe(scene, dx, cancelled){
+  scene.style.transition = 'transform .25s cubic-bezier(.4,0,.2,1)';
+  scene.style.transform = '';
+  setTimeout(()=>{ scene.style.transition = ''; }, 260);
+  if(!cancelled && Math.abs(dx) >= SWIPE_THRESHOLD) changeCardLevel(dx > 0 ? 1 : -1);
+  updateLevelBadges(studyOrder[studyIndex]);
+}
+
+function initStudySwipe(){
+  const scene = document.querySelector('#panel-study .flip-scene');
+  if(!scene || scene._swipeInit) return;
+  scene._swipeInit = true;
+  window.addEventListener('resize', positionSwipeHints);
+
+  scene.addEventListener('pointerdown', e=>{
+    if(!studyOrder.length) return;
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    swipeState = { id:e.pointerId, x:e.clientX, y:e.clientY, dx:0, active:false };
+  });
+  scene.addEventListener('pointermove', e=>{
+    const s = swipeState; if(!s || e.pointerId !== s.id) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if(!s.active){
+      if(Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)*1.2){
+        s.active = true;
+        try{ scene.setPointerCapture(e.pointerId); }catch(_){}
+        scene.style.transition = 'none';
+      } else return;
+    }
+    s.dx = dx;
+    applySwipeVisual(scene, dx);
+  });
+  const end = e=>{
+    const s = swipeState; if(!s || e.pointerId !== s.id) return;
+    swipeState = null;
+    if(!s.active) return;
+    swipeBlockClick = true;
+    setTimeout(()=>{ swipeBlockClick = false; }, 80);
+    finishSwipe(scene, s.dx, e.type === 'pointercancel');
+  };
+  scene.addEventListener('pointerup', end);
+  scene.addEventListener('pointercancel', end);
+}
+
 // DUPLICATE DETECTION
 // prefix: 'f' (manual form) or 'vp' (voice preview)
 const dupMatchId = { f:null, vp:null };
@@ -2954,6 +3145,14 @@ function pushUndo(flash){
 function doUndo(){
   if(!undoStack.length) return;
   const snap = undoStack.pop();
+  // Keep progress levels earned since the snapshot was taken
+  const liveLevels = new Map((allDecks[snap.lang]||[]).map(c=>[String(c.id), c.level]));
+  snap.deck.forEach(c=>{
+    if(liveLevels.has(String(c.id))){
+      const lv = liveLevels.get(String(c.id));
+      if(lv === undefined) delete c.level; else c.level = lv;
+    }
+  });
   allDecks[snap.lang] = snap.deck;
   save();
   if(snap.lang !== currentLang) switchLang(snap.lang);
