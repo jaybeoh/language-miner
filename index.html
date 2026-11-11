@@ -429,7 +429,7 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 
 /* PLAY LEVELING */
 .preset-rotator { display:flex; flex-direction:column; align-items:center; gap:0; margin:2px 0 6px; }
-.preset-stage { position:relative; width:240px; height:64px; }
+.preset-stage { position:relative; width:240px; height:64px; isolation:isolate; z-index:0; }
 .preset-stage::after { content:''; position:absolute; left:50%; bottom:3px; width:110px; height:10px; transform:translateX(-50%); background:radial-gradient(ellipse at center, rgba(201,168,76,.22), transparent 70%); pointer-events:none; }
 .preset-item { position:absolute; left:50%; top:50%; font-size:2.2rem; line-height:1; cursor:pointer; user-select:none; -webkit-user-select:none; will-change:transform,opacity; }
 .preset-nav { display:flex; align-items:center; justify-content:center; gap:6px; }
@@ -438,11 +438,11 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .preset-name { min-width:120px; text-align:center; font-family:'Lato',sans-serif; font-size:1rem; color:var(--text); }
 .play-level-settings { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; gap:10px; border-top:1px solid var(--border); padding-top:14px; margin-top:2px; }
 .play-setting-row { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; font-size:.8rem; color:var(--muted); font-family:'Lato',sans-serif; }
-.float-text { position:fixed; transform:translate(-50%,-50%); font-family:'Lato',sans-serif; font-weight:900; font-size:.95rem; letter-spacing:.03em; white-space:nowrap; pointer-events:none; z-index:400; text-shadow:0 1px 5px rgba(0,0,0,.85); animation-duration:.5s; animation-timing-function:ease-out; animation-fill-mode:forwards; }
+.float-text { position:fixed; transform:translate(-50%,-100%); font-family:'Lato',sans-serif; font-weight:900; font-size:.95rem; letter-spacing:.03em; white-space:nowrap; pointer-events:none; z-index:2000; text-shadow:0 1px 5px rgba(0,0,0,.85); animation-duration:.5s; animation-timing-function:ease-out; animation-fill-mode:forwards; }
 .float-text.up   { color:#5fd068; animation-name:lm-float-up; }
 .float-text.down { color:#ff5d5d; animation-name:lm-float-down; }
-@keyframes lm-float-up   { from{opacity:1; transform:translate(-50%,-50%)} to{opacity:0; transform:translate(-50%,calc(-50% - 34px))} }
-@keyframes lm-float-down { from{opacity:1; transform:translate(-50%,-50%)} to{opacity:0; transform:translate(-50%,calc(-50% + 34px))} }
+@keyframes lm-float-up   { 0%{opacity:1; transform:translate(-50%,-100%)} 65%{opacity:1} 100%{opacity:0; transform:translate(-50%,calc(-100% - 26px))} }
+@keyframes lm-float-down { 0%{opacity:1; transform:translate(-50%,-100%)} 65%{opacity:1} 100%{opacity:0; transform:translate(-50%,calc(-100% + 22px))} }
 
 /* undo button */
 #undo-btn:not(:disabled) { color:var(--gold); }
@@ -3160,11 +3160,35 @@ function presetForSettings(s){
   return m ? m.id : 'custom';
 }
 
-// The app always wakes up on Casual
-let playPreset   = 'casual';
-let playSettings = { advanceAfter:3, wrongAction:'down1' };
-try{ localStorage.removeItem('lm-play-settings'); }catch(e){}   // key used by an earlier version
-let presetRot = presetIndex('casual'), presetAnim = null;
+// Leveling settings are remembered between launches; a fresh install starts on Casual
+const WRONG_ACTIONS = ['none','down1','down2','reset'];
+function loadPlayState(){
+  const fallback = { preset:'casual', advanceAfter:3, wrongAction:'down1' };
+  try{
+    const raw = localStorage.getItem('lm-play-settings');
+    if(!raw) return fallback;
+    const s = JSON.parse(raw);
+    const n = parseInt(s.advanceAfter, 10);
+    if(isNaN(n) || n < 0 || n > 10 || !WRONG_ACTIONS.includes(s.wrongAction)) return fallback;
+    const preset = PLAY_PRESETS.some(p => p.id === s.preset)
+      ? s.preset
+      : presetForSettings({ advanceAfter:n, wrongAction:s.wrongAction });
+    const p = PLAY_PRESETS.find(x => x.id === preset);
+    if(preset !== 'custom') return { preset, advanceAfter:p.advanceAfter, wrongAction:p.wrongAction };
+    return { preset, advanceAfter:n, wrongAction:s.wrongAction };
+  }catch(e){ return fallback; }
+}
+function persistPlayState(){
+  try{
+    localStorage.setItem('lm-play-settings', JSON.stringify({
+      preset: playPreset, advanceAfter: playSettings.advanceAfter, wrongAction: playSettings.wrongAction
+    }));
+  }catch(e){}
+}
+const _playInit  = loadPlayState();
+let playPreset   = _playInit.preset;
+let playSettings = { advanceAfter:_playInit.advanceAfter, wrongAction:_playInit.wrongAction };
+let presetRot = presetIndex(playPreset), presetAnim = null;
 
 function buildPresetStage(){
   const stage = document.getElementById('preset-stage');
@@ -3238,6 +3262,7 @@ function selectPreset(id){
   if(id !== 'custom') playSettings = { advanceAfter:p.advanceAfter, wrongAction:p.wrongAction };
   syncPlaySettingsUI();
   rotatePresetTo(presetIndex(id), true);
+  persistPlayState();
 }
 function stepPreset(dir){
   const n = PLAY_PRESETS.length;
@@ -3255,9 +3280,11 @@ function savePlaySettings(){
     syncPlaySettingsUI();
     rotatePresetTo(presetIndex(match), true);
   }
+  persistPlayState();
 }
 
-// Small game-style label that floats up (green) or down (red) from an element and fades out
+// Small game-style label that floats up (green) or down (red) just above an element,
+// like a damage number over a game character, and fades out
 function spawnFloatText(anchorEl, text, dir){
   if(!anchorEl || !text) return;
   const r = anchorEl.getBoundingClientRect();
@@ -3265,14 +3292,14 @@ function spawnFloatText(anchorEl, text, dir){
   el.className = 'float-text ' + (dir === 'up' ? 'up' : 'down');
   el.textContent = text;
   el.style.left = (r.left + r.width/2) + 'px';
-  el.style.top  = (r.top  + r.height/2) + 'px';
+  el.style.top  = Math.max(22, r.top - 6) + 'px';   // bottom edge of the label sits 6px above the card
   document.body.appendChild(el);
   setTimeout(()=>el.remove(), 550);
 }
 
 // Called by the games after every match. Correct matches are counted per card (card.levelHits)
 // and the card moves up a level once the count reaches the setting; the count restarts after
-// any level change. A wrong match applies the chosen penalty.
+// any level change. A wrong match always restarts the count, then applies the chosen penalty.
 function applyMatchResult(cardId, correct, anchorEl){
   const card = currentDeck().find(c => String(c.id) === String(cardId));
   if(!card) return;
@@ -3287,11 +3314,14 @@ function applyMatchResult(cardId, correct, anchorEl){
       else { card.levelHits = hits; save(); return; }
     }
   } else {
+    const hadHits = (parseInt(card.levelHits, 10) || 0) > 0;
+    if(hadHits) card.levelHits = 0;
     const act = playSettings.wrongAction;
     dir = 'down';
     if(act === 'down1'){ to = Math.max(0, from-1); label = 'Level Down'; }
     else if(act === 'down2'){ to = Math.max(0, from-2); label = 'Level Down'; }
     else if(act === 'reset'){ to = 0; label = 'Level Reset'; }
+    if(to === from){ if(hadHits) save(); return; }
   }
 
   if(to === from) return;
