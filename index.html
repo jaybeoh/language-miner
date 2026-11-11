@@ -427,6 +427,23 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .swipe-hint { position:absolute; top:50%; width:13px; height:13px; margin-top:-6.5px; opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
 #panel-study { overflow-x:hidden; overflow-x:clip; }
 
+/* PLAY LEVELING */
+.preset-rotator { display:flex; flex-direction:column; align-items:center; gap:0; margin:2px 0 6px; }
+.preset-stage { position:relative; width:240px; height:64px; }
+.preset-stage::after { content:''; position:absolute; left:50%; bottom:3px; width:110px; height:10px; transform:translateX(-50%); background:radial-gradient(ellipse at center, rgba(201,168,76,.22), transparent 70%); pointer-events:none; }
+.preset-item { position:absolute; left:50%; top:50%; font-size:2.2rem; line-height:1; cursor:pointer; user-select:none; -webkit-user-select:none; will-change:transform,opacity; }
+.preset-nav { display:flex; align-items:center; justify-content:center; gap:6px; }
+.preset-arrow { background:none; border:none; color:var(--muted); font-size:1.1rem; padding:6px 12px; cursor:pointer; font-family:'Lato',sans-serif; transition:color .15s; }
+.preset-arrow:active { color:var(--gold); }
+.preset-name { min-width:120px; text-align:center; font-family:'Lato',sans-serif; font-size:1rem; color:var(--text); }
+.play-level-settings { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; gap:10px; border-top:1px solid var(--border); padding-top:14px; margin-top:2px; }
+.play-setting-row { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; font-size:.8rem; color:var(--muted); font-family:'Lato',sans-serif; }
+.float-text { position:fixed; transform:translate(-50%,-50%); font-family:'Lato',sans-serif; font-weight:900; font-size:.95rem; letter-spacing:.03em; white-space:nowrap; pointer-events:none; z-index:400; text-shadow:0 1px 5px rgba(0,0,0,.85); animation-duration:.5s; animation-timing-function:ease-out; animation-fill-mode:forwards; }
+.float-text.up   { color:#5fd068; animation-name:lm-float-up; }
+.float-text.down { color:#ff5d5d; animation-name:lm-float-down; }
+@keyframes lm-float-up   { from{opacity:1; transform:translate(-50%,-50%)} to{opacity:0; transform:translate(-50%,calc(-50% - 34px))} }
+@keyframes lm-float-down { from{opacity:1; transform:translate(-50%,-50%)} to{opacity:0; transform:translate(-50%,calc(-50% + 34px))} }
+
 /* undo button */
 #undo-btn:not(:disabled) { color:var(--gold); }
 #undo-btn:disabled { opacity:.3; cursor:default; }
@@ -883,6 +900,32 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
       <div class="game-name">Miner</div>
       <div class="game-soon">Coming soon</div>
     </button>
+
+    <div class="play-level-settings">
+      <div class="level-filter-label">Leveling</div>
+      <div class="preset-rotator">
+        <div class="preset-stage" id="preset-stage"></div>
+        <div class="preset-nav">
+          <button class="preset-arrow" onclick="stepPreset(-1)" aria-label="Previous preset">&lt;</button>
+          <div class="preset-name" id="preset-name">Casual</div>
+          <button class="preset-arrow" onclick="stepPreset(1)" aria-label="Next preset">&gt;</button>
+        </div>
+      </div>
+      <div class="play-setting-row">
+        <span>Advance card after</span>
+        <select class="face-select" id="play-advance-sel" onchange="savePlaySettings()"><option value="0">0 (off)</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+        <span>correct matches</span>
+      </div>
+      <div class="play-setting-row">
+        <span>On wrong match</span>
+        <select class="face-select" id="play-wrong-sel" onchange="savePlaySettings()">
+          <option value="none">Do nothing</option>
+          <option value="down1">Card level &minus;1</option>
+          <option value="down2">Card level &minus;2</option>
+          <option value="reset">Reset card to bronze</option>
+        </select>
+      </div>
+    </div>
 
   </div>
 </div>
@@ -1725,7 +1768,7 @@ function showPanel(name,btn){
   if(name==='add'){ renderTagSelectWrap('manual'); renderTagSelectWrap('voice'); }
   if(name==='deck'){renderDeckCatBar();renderDeckSubtagBar();renderDeck();}
   if(name==='study'){renderStudyCatBar();renderStudySubtagBar();renderLevelFilter('study');initStudySwipe();initStudy();}
-  if(name==='play'){renderPlayCatBar();renderLevelFilter('play');}
+  if(name==='play'){renderPlayCatBar();renderLevelFilter('play');renderPlaySettings();}
   if(name==='craft'){initCraftPanel();}
 }
 
@@ -1980,6 +2023,7 @@ function pair2Tap(el, side, cardId){
     fEl.classList.remove('selected'); bEl.classList.remove('selected');
     if(match){
       fEl.classList.add('matched'); bEl.classList.add('matched');
+      applyMatchResult(pair2SelFront.cardId, true, el);
       pair2Matched++; pair2TotalMatched++;
       document.getElementById('pair2-score').textContent=`${pair2TotalMatched} / ${pair2TotalCards}`;
       document.getElementById('pair2-progress').style.width=`${pair2TotalMatched/pair2TotalCards*100}%`;
@@ -1993,6 +2037,8 @@ function pair2Tap(el, side, cardId){
       }
     } else {
       fEl.classList.add('wrong'); bEl.classList.add('wrong');
+      applyMatchResult(pair2SelFront.cardId, false, fEl);
+      applyMatchResult(pair2SelBack.cardId, false, bEl);
       setTimeout(()=>{
         fEl.classList.remove('wrong'); bEl.classList.remove('wrong');
       },600);
@@ -2121,11 +2167,16 @@ function pick1Choose(el,isCorrect,cardId){
   document.querySelectorAll('.pick1-answer').forEach(a=>a.classList.add('disabled'));
   if(isCorrect){
     el.classList.remove('disabled'); el.classList.add('correct'); pick1Correct++;
+    const asked = pick1Cards[pick1Index];
+    if(asked) applyMatchResult(asked.id, true, el);
   } else {
     el.classList.remove('disabled'); el.classList.add('wrong');
     document.querySelectorAll('.pick1-answer[data-correct="true"]').forEach(a=>{
       a.classList.remove('disabled'); a.classList.add('reveal-correct');
     });
+    // the card being asked about is the one that failed, so its label spawns from the question card
+    const asked = pick1Cards[pick1Index];
+    if(asked) applyMatchResult(asked.id, false, document.getElementById('pick1-question'));
   }
   setTimeout(()=>{
     pick1Index++;
@@ -3091,6 +3142,165 @@ function initStudySwipe(){
   scene.addEventListener('pointercancel', end);
 }
 
+// ═══════════════════════════════════
+// PLAY LEVELING (advance after N correct matches / penalty on a wrong match)
+// ═══════════════════════════════════
+// Leveling presets. Custom has no values of its own: it keeps whatever the dropdowns say.
+const PLAY_PRESETS = [
+  { id:'free',     emoji:'⛰️', name:'Free Play', advanceAfter:0, wrongAction:'none'  },
+  { id:'casual',   emoji:'🪨', name:'Casual',    advanceAfter:3, wrongAction:'down1' },
+  { id:'hardcore', emoji:'💀', name:'Hardcore',  advanceAfter:6, wrongAction:'reset' },
+  { id:'custom',   emoji:'🔨', name:'Custom',    advanceAfter:null, wrongAction:null }
+];
+const presetIndex = id => PLAY_PRESETS.findIndex(p => p.id === id);
+
+// The preset whose values equal the given settings, or 'custom'
+function presetForSettings(s){
+  const m = PLAY_PRESETS.find(p => p.id !== 'custom' && p.advanceAfter === s.advanceAfter && p.wrongAction === s.wrongAction);
+  return m ? m.id : 'custom';
+}
+
+// The app always wakes up on Casual
+let playPreset   = 'casual';
+let playSettings = { advanceAfter:3, wrongAction:'down1' };
+try{ localStorage.removeItem('lm-play-settings'); }catch(e){}   // key used by an earlier version
+let presetRot = presetIndex('casual'), presetAnim = null;
+
+function buildPresetStage(){
+  const stage = document.getElementById('preset-stage');
+  if(!stage || stage.children.length) return;
+  stage.innerHTML = PLAY_PRESETS.map(p =>
+    `<div class="preset-item" data-id="${p.id}" onclick="selectPreset('${p.id}')" title="${p.name}">${p.emoji}</div>`
+  ).join('');
+}
+
+// Lay the items out on a ring seen slightly from above: front item big and bright,
+// side items small and dim, the item at the back hidden. rot is in item units.
+function paintPresetRing(rot){
+  const items = document.querySelectorAll('#preset-stage .preset-item');
+  const n = PLAY_PRESETS.length;
+  items.forEach((el, i)=>{
+    const a = (i - rot) * 2 * Math.PI / n;
+    const depth = Math.cos(a);                 //  1 = front, -1 = back
+    const t = (depth + 1) / 2;
+    const x = Math.sin(a) * 64;
+    const y = -(1 - depth) * 4;
+    const scale = 0.4 + 0.6 * t * t;
+    const opacity = Math.max(0, Math.min(1, 2.2 * t - 0.55));
+    el.style.transform = `translate(-50%,-50%) translate(${x}px,${y}px) scale(${scale})`;
+    el.style.opacity = opacity;
+    el.style.zIndex = Math.round(t * 100);
+    el.style.pointerEvents = opacity < 0.1 ? 'none' : 'auto';
+  });
+}
+
+// Spin the ring to an item along the shortest way round
+function rotatePresetTo(index, animate){
+  const n = PLAY_PRESETS.length;
+  if(presetAnim) cancelAnimationFrame(presetAnim);
+  const cur = ((presetRot % n) + n) % n;
+  let delta = index - cur;
+  delta = ((delta + n/2) % n + n) % n - n/2;
+  const from = presetRot, to = presetRot + delta;
+  if(!animate || Math.abs(delta) < 1e-6){ presetRot = to; paintPresetRing(presetRot); return; }
+  const t0 = performance.now(), dur = 380;
+  const step = now=>{
+    const k = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - k, 3);
+    presetRot = from + (to - from) * eased;
+    paintPresetRing(presetRot);
+    presetAnim = k < 1 ? requestAnimationFrame(step) : null;
+  };
+  presetAnim = requestAnimationFrame(step);
+}
+
+function syncPlaySettingsUI(){
+  const a = document.getElementById('play-advance-sel');
+  const w = document.getElementById('play-wrong-sel');
+  const n = document.getElementById('preset-name');
+  if(a) a.value = String(playSettings.advanceAfter);
+  if(w) w.value = playSettings.wrongAction;
+  if(n) n.textContent = PLAY_PRESETS[presetIndex(playPreset)].name;
+}
+
+// Called when the Play tab opens: build the ring and show the current state without animation
+function renderPlaySettings(){
+  buildPresetStage();
+  syncPlaySettingsUI();
+  if(presetAnim){ cancelAnimationFrame(presetAnim); presetAnim = null; }
+  presetRot = presetIndex(playPreset);
+  paintPresetRing(presetRot);
+}
+
+function selectPreset(id){
+  const p = PLAY_PRESETS.find(x => x.id === id); if(!p) return;
+  playPreset = id;
+  if(id !== 'custom') playSettings = { advanceAfter:p.advanceAfter, wrongAction:p.wrongAction };
+  syncPlaySettingsUI();
+  rotatePresetTo(presetIndex(id), true);
+}
+function stepPreset(dir){
+  const n = PLAY_PRESETS.length;
+  selectPreset(PLAY_PRESETS[(presetIndex(playPreset) + dir + n) % n].id);
+}
+
+// A dropdown changed: jump to the preset that matches, or to Custom
+function savePlaySettings(){
+  const a = document.getElementById('play-advance-sel');
+  const w = document.getElementById('play-wrong-sel');
+  playSettings = { advanceAfter: parseInt(a.value, 10) || 0, wrongAction: w.value };
+  const match = presetForSettings(playSettings);
+  if(match !== playPreset){
+    playPreset = match;
+    syncPlaySettingsUI();
+    rotatePresetTo(presetIndex(match), true);
+  }
+}
+
+// Small game-style label that floats up (green) or down (red) from an element and fades out
+function spawnFloatText(anchorEl, text, dir){
+  if(!anchorEl || !text) return;
+  const r = anchorEl.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'float-text ' + (dir === 'up' ? 'up' : 'down');
+  el.textContent = text;
+  el.style.left = (r.left + r.width/2) + 'px';
+  el.style.top  = (r.top  + r.height/2) + 'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 550);
+}
+
+// Called by the games after every match. Correct matches are counted per card (card.levelHits)
+// and the card moves up a level once the count reaches the setting; the count restarts after
+// any level change. A wrong match applies the chosen penalty.
+function applyMatchResult(cardId, correct, anchorEl){
+  const card = currentDeck().find(c => String(c.id) === String(cardId));
+  if(!card) return;
+  const from = cardLevel(card);
+  let to = from, label = null, dir = null;
+
+  if(correct){
+    const x = playSettings.advanceAfter;
+    if(x > 0 && from < LEVEL_NAMES.length-1){
+      const hits = (parseInt(card.levelHits, 10) || 0) + 1;
+      if(hits >= x){ to = from + 1; label = 'Level Up'; dir = 'up'; }
+      else { card.levelHits = hits; save(); return; }
+    }
+  } else {
+    const act = playSettings.wrongAction;
+    dir = 'down';
+    if(act === 'down1'){ to = Math.max(0, from-1); label = 'Level Down'; }
+    else if(act === 'down2'){ to = Math.max(0, from-2); label = 'Level Down'; }
+    else if(act === 'reset'){ to = 0; label = 'Level Reset'; }
+  }
+
+  if(to === from) return;
+  card.level = to;
+  card.levelHits = 0;
+  save();
+  spawnFloatText(anchorEl, label, dir);
+}
+
 // DUPLICATE DETECTION
 // prefix: 'f' (manual form) or 'vp' (voice preview)
 const dupMatchId = { f:null, vp:null };
@@ -3146,12 +3356,11 @@ function doUndo(){
   if(!undoStack.length) return;
   const snap = undoStack.pop();
   // Keep progress levels earned since the snapshot was taken
-  const liveLevels = new Map((allDecks[snap.lang]||[]).map(c=>[String(c.id), c.level]));
+  const liveProgress = new Map((allDecks[snap.lang]||[]).map(c=>[String(c.id), {level:c.level, hits:c.levelHits}]));
   snap.deck.forEach(c=>{
-    if(liveLevels.has(String(c.id))){
-      const lv = liveLevels.get(String(c.id));
-      if(lv === undefined) delete c.level; else c.level = lv;
-    }
+    const p = liveProgress.get(String(c.id)); if(!p) return;
+    if(p.level === undefined) delete c.level; else c.level = p.level;
+    if(p.hits === undefined) delete c.levelHits; else c.levelHits = p.hits;
   });
   allDecks[snap.lang] = snap.deck;
   save();
