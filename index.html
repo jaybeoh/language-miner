@@ -99,17 +99,6 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .mic-status { font-size:.78rem; color:var(--muted); font-style:italic; text-align:center; min-height:18px; letter-spacing:.04em; }
 .mic-status.active { color:var(--gold); }
 .mic-status.error { color:#e06c8a; }
-.voice-preview { width:100%; background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:16px 18px; display:none; flex-direction:column; gap:10px; }
-.voice-preview.visible { display:flex; }
-.preview-target { font-size:1.6rem; text-align:right; direction:rtl; line-height:1.7; }
-.preview-target.ltr { text-align:left; direction:ltr; font-family:'Libre Baskerville',serif; }
-.preview-row { display:flex; gap:12px; flex-wrap:wrap; }
-.preview-field { flex:1; min-width:110px; }
-.preview-field label { font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; display:block; margin-bottom:4px; }
-.preview-field input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:7px 10px; font-size:.88rem; font-family:'Lato',sans-serif; outline:none; }
-.preview-field input:focus { border-color:var(--gold-dim); }
-.preview-field input.rtl-input { font-size:1.1rem; direction:rtl; text-align:right; font-family:inherit; }
-.preview-actions { display:flex; gap:10px; margin-top:4px; }
 
 /* card form */
 .card-form { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
@@ -266,9 +255,18 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .sel-circle.selected { border-color:var(--gold); background:var(--gold); }
 .sel-circle.selected::after { content:''; display:block; width:5px; height:9px; border:2px solid #0f0e0b; border-top:none; border-left:none; transform:rotate(45deg) translate(-1px,-1px); }
 .card-tile.sel-active { border-color:var(--gold-dim); background:rgba(201,168,76,.05); }
-.sel-toolbar-btn { background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:5px 11px; font-family:'Lato',sans-serif; font-size:.73rem; cursor:pointer; transition:all .2s; letter-spacing:.04em; white-space:nowrap; }
+.sel-toolbar-btn { background:none; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:5px 8px; font-family:'Lato',sans-serif; font-size:.73rem; cursor:pointer; transition:all .2s; letter-spacing:.02em; white-space:nowrap; }
 .sel-toolbar-btn:hover:not(:disabled) { border-color:var(--gold-dim); color:var(--gold); }
 .sel-toolbar-btn:disabled { opacity:.35; cursor:default; }
+.sort-wrap { position:relative; display:flex; }
+.sort-btn { aspect-ratio:1/1; min-width:26px; padding:0; display:flex; align-items:center; justify-content:center; }
+.sel-toolbar-btn.sort-active { border-color:var(--gold); color:var(--gold); background:rgba(201,168,76,.12); }
+.sort-menu { position:absolute; top:calc(100% + 6px); right:0; min-width:176px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:4px; box-shadow:0 8px 24px rgba(0,0,0,.45); z-index:60; }
+.sort-opt { display:flex; align-items:center; gap:8px; width:100%; background:none; border:none; color:var(--text); padding:9px 10px; border-radius:7px; font-family:'Lato',sans-serif; font-size:.82rem; text-align:left; cursor:pointer; white-space:nowrap; }
+.sort-opt:hover { background:rgba(201,168,76,.08); }
+.sort-opt.current { color:var(--gold); }
+.sort-check { width:14px; font-size:.7rem; visibility:hidden; }
+.sort-opt.current .sort-check { visibility:visible; }
 .sel-toolbar-btn#btn-edit-sel:not(:disabled) { border-color:var(--gold-dim); color:var(--gold); }
 .bulk-tag-row { display:flex; align-items:center; gap:10px; padding:5px 8px; border-radius:8px; cursor:pointer; transition:background .15s; font-size:.83rem; user-select:none; }
 .bulk-tag-row:hover { background:rgba(201,168,76,.07); }
@@ -427,6 +425,11 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
 .swipe-hint { position:absolute; top:50%; width:13px; height:13px; margin-top:-6.5px; opacity:0; pointer-events:none; transition:opacity .15s, transform .15s; }
 #panel-study { overflow-x:hidden; overflow-x:clip; }
 
+/* add-card form highlight after a speech result */
+.card-form { border-radius:12px; scroll-margin-top:12px; }
+.card-form.form-flash { animation:form-flash 1.2s ease-out; }
+@keyframes form-flash { 0%{ box-shadow:0 0 0 2px var(--gold); } 100%{ box-shadow:0 0 0 2px transparent; } }
+
 /* PLAY LEVELING */
 .preset-rotator { display:flex; flex-direction:column; align-items:center; gap:0; margin:2px 0 6px; }
 .preset-stage { position:relative; width:240px; height:64px; isolation:isolate; z-index:0; }
@@ -539,71 +542,6 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
       </button>
     </div>
     <div class="mic-status" id="mic-status">Tap to speak</div>
-    <div class="voice-preview" id="voice-preview">
-      <div class="preview-target" id="vp-target" dir="rtl"></div>
-      <div class="preview-row">
-        <div class="preview-field">
-          <label id="vp-target-label">Target</label>
-          <input id="vp-target-edit" type="text" dir="rtl" oninput="checkDuplicate('vp')">
-        </div>
-        <div class="preview-field" id="vp-roman-field">
-          <label>Romanisation</label>
-          <input id="vp-roman" type="text">
-        </div>
-      </div>
-      <div class="retranslate-row">
-        <div class="retranslate-row-inner">
-          <button class="retranslate-arrow" id="vp-retrans-to-target" onclick="retranslateVoice('toTarget')" title="Translate English → target">&#x25B2;</button>
-          <span class="retranslate-label">Translate</span>
-          <button class="retranslate-arrow" id="vp-retrans-to-en" onclick="retranslateVoice('toEn')" title="Translate target → English">&#x25BC;</button>
-        </div>
-      </div>
-      <div class="preview-row">
-        <div class="preview-field" style="flex:2">
-          <label>Translation</label>
-          <input id="vp-english" type="text">
-        </div>
-      </div>
-      <div>
-        <div style="font-size:.68rem;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.07em">Tags</div>
-        <div class="tag-select-wrap" id="vp-tag-wrap"></div>
-      </div>
-      <div>
-        <div style="font-size:.68rem;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.07em">Gender</div>
-        <div class="gender-row" id="vp-gender-row">
-          <div class="gender-pill masc" onclick="setVpGender('masc')">&#x2642;</div>
-          <div class="gender-pill fem" onclick="setVpGender('fem')">&#x2640;</div>
-          <div class="gender-pill neut selected" onclick="setVpGender('neut')">&mdash;</div>
-        </div>
-      </div>
-      <div id="vp-dup-warn" style="display:none;padding:6px 10px;border-radius:8px;background:rgba(201,168,76,.1);border:1px solid var(--gold-dim);font-size:.8rem;color:var(--gold);cursor:pointer;text-align:center;margin-top:4px" onclick="goToDuplicate('vp')">Duplicate found. View &#x2192;</div>
-      <div class="preview-actions">
-        <button class="btn-primary" style="margin-top:0;flex:1" onclick="saveVoiceCard()">&#x2713; Save Card</button>
-        <button class="btn-outline" style="margin-top:0" onclick="discardVoice()">&#x2715;</button>
-      </div>
-      <!-- voice preview media -->
-      <input type="file" id="vp-camera-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFile(this,'voice')">
-      <input type="file" id="vp-gallery-input" accept="image/*" style="display:none" onchange="handlePhotoFile(this,'voice')">
-      <div class="media-btn-row" style="margin-top:2px">
-        <button class="media-btn" id="vp-camera-btn" onclick="document.getElementById('vp-camera-input').click()">
-          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-          <span class="lbl">Camera</span>
-        </button>
-        <button class="media-btn" id="vp-gallery-btn" onclick="document.getElementById('vp-gallery-input').click()">
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <span class="lbl">Gallery</span>
-        </button>
-        <button class="media-btn" onclick="openEmojiPicker('voice')">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2" stroke-linecap="round"/><circle cx="9" cy="9" r=".5" fill="currentColor"/><circle cx="15" cy="9" r=".5" fill="currentColor"/></svg>
-          <span class="lbl">Emoji</span>
-        </button>
-        <button class="media-btn" id="vp-rec-btn" onclick="toggleCardRecording('voice')">
-          <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
-          <span class="lbl" id="vp-rec-lbl">Recording</span>
-        </button>
-      </div>
-      <div class="media-preview-strip" id="vp-media-strip"></div>
-    </div>
   </div>
 
   <div class="box">
@@ -683,21 +621,27 @@ footer { position:fixed; bottom:0; left:0; right:0; background:var(--surface); b
     <div id="deck-subtag-chips" style="display:flex;gap:5px;flex-wrap:nowrap"></div>
   </div>
   <!-- search bar -->
-  <div style="padding:10px 12px 0;position:relative">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:22px;top:50%;transform:translateY(-35%);color:var(--muted);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <div style="padding:10px 0 0 4px;position:relative">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:14px;top:50%;transform:translateY(-35%);color:var(--muted);pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input id="deck-search" type="text" placeholder="Search cards…"
       style="width:100%;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:8px 12px 8px 32px;font-size:.85rem;font-family:'Lato',sans-serif;outline:none;transition:border-color .2s"
       oninput="renderDeck()" onfocus="this.style.borderColor='var(--gold-dim)'" onblur="this.style.borderColor='var(--border)'">
   </div>
   <!-- selection toolbar -->
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 0;flex-shrink:0">
-    <div style="display:flex;align-items:center;gap:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;padding:8px 0 0 4px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:5px">
       <button class="sel-toolbar-btn" onclick="selectAll()" title="Select all visible">Select all</button>
       <span id="sel-counter" style="font-size:.75rem;color:var(--muted)">0 / 0</span>
     </div>
-    <div style="display:flex;gap:6px">
+    <div style="display:flex;gap:5px">
       <button class="sel-toolbar-btn" id="btn-edit-sel" onclick="openBulkEdit()" disabled>Edit selected</button>
       <button class="sel-toolbar-btn" id="btn-desel-all" onclick="deselectAll()" disabled>Deselect all</button>
+      <div class="sort-wrap">
+        <button class="sel-toolbar-btn sort-btn" id="btn-sort" onclick="toggleSortMenu(event)" title="Sort order" aria-label="Sort order">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="sort-menu" id="deck-sort-menu" style="display:none"></div>
+      </div>
     </div>
   </div>
   <div style="padding:0 12px 20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;">
@@ -1259,7 +1203,7 @@ let activeLangs = JSON.parse(localStorage.getItem('lm-langs')||'null') || [];
 let tags  = JSON.parse(localStorage.getItem('lm-tags') ||'null') || [{id:'general',name:'General',subtags:[]}];
 let currentLang = activeLangs[0]||null;
 let selectedManualGender='neut';
-let manualTags=new Set(['general']), vpTags=new Set(['general']), editTags=new Set(['general']);
+let manualTags=new Set(['general']), editTags=new Set(['general']);
 let studyIndex=0, studyOrder=[];
 let inputLang='target';
 let deckTagFilter=null;        // null=All, '__incomplete__', or tag id
@@ -1332,12 +1276,12 @@ function save(){
 // TAG SYSTEM
 // ─────────────────────────────────────────────
 // renderTagSelectWrap: render multi-select tag chips + subtag expansion
-// ctx: 'manual'|'voice'|'edit'
+// ctx: 'manual'|'edit'
 function renderTagSelectWrap(ctx){
   if(ctx==='craft'){ renderCraftTagWrap(); return; }
-  const wrId = ctx==='manual'?'manual-tag-wrap':ctx==='voice'?'vp-tag-wrap':'edit-tag-wrap';
+  const wrId = ctx==='manual'?'manual-tag-wrap':'edit-tag-wrap';
   const wr = document.getElementById(wrId); if(!wr)return;
-  const sel = ctx==='manual'?manualTags:ctx==='voice'?vpTags:editTags;
+  const sel = ctx==='manual'?manualTags:editTags;
   const visibleTags = tags.filter(t=>t.id!==CRAFTED_TAG);
   let html = '<div class="tag-row">';
   visibleTags.forEach(t=>{
@@ -1364,7 +1308,7 @@ function renderTagSelectWrap(ctx){
 }
 
 function toggleTagChip(ctx, id){
-  const sel = ctx==='manual'?manualTags:ctx==='voice'?vpTags:editTags;
+  const sel = ctx==='manual'?manualTags:editTags;
   if(id.includes('/')){
     // subtag: toggle it
     if(sel.has(id)) sel.delete(id); else sel.add(id);
@@ -1383,7 +1327,7 @@ function toggleTagChip(ctx, id){
 }
 
 function selectedTagsArray(ctx){
-  const sel = ctx==='manual'?manualTags:ctx==='voice'?vpTags:editTags;
+  const sel = ctx==='manual'?manualTags:editTags;
   return [...sel];
 }
 
@@ -1551,11 +1495,11 @@ function confirmNewCat(){
     const parent=getTag(newTagParentId);
     if(!parent)return;
     if(!parent.subtags.find(s=>s.id===id)) parent.subtags.push({id,name:val});
-    const sel=newTagCtx==='manual'?manualTags:newTagCtx==='voice'?vpTags:editTags;
+    const sel=newTagCtx==='manual'?manualTags:editTags;
     sel.add(newTagParentId+'/'+id);
   } else {
     if(!tags.find(t=>t.id===id)) tags.push({id,name:val,subtags:[]});
-    const sel=newTagCtx==='manual'?manualTags:newTagCtx==='voice'?vpTags:editTags;
+    const sel=newTagCtx==='manual'?manualTags:editTags;
     sel.add(id);
   }
   save(); closeNewCat(); renderTagSelectWrap(newTagCtx); renderDeckCatBar(); renderStudyCatBar();
@@ -1569,7 +1513,7 @@ function openCatEdit(){ openTagEdit(); } // alias
 function closeCatEdit(){
   document.getElementById('cat-edit-modal').classList.remove('visible');
   renderDeckCatBar(); renderStudyCatBar();
-  renderTagSelectWrap('manual'); renderTagSelectWrap('voice');
+  renderTagSelectWrap('manual');
   renderDeck();
 }
 
@@ -1615,7 +1559,7 @@ function renameTag(ti,val){
   Object.values(allDecks).forEach(deck=>deck.forEach(c=>{if(c.tags){c.tags=c.tags.map(id=>id===oldId?newId:id.startsWith(oldId+'/')?newId+id.slice(oldId.length):id);}}));
   if(studyTagFilter.has(oldId)){studyTagFilter.delete(oldId);studyTagFilter.add(newId);}
   if(deckTagFilter===oldId)deckTagFilter=newId;
-  [manualTags,vpTags,editTags].forEach(s=>{if(s.has(oldId)){s.delete(oldId);s.add(newId);}});
+  [manualTags,editTags].forEach(s=>{if(s.has(oldId)){s.delete(oldId);s.add(newId);}});
   save(); renderTagEditList(); toast('Renamed.');
 }
 
@@ -1640,7 +1584,7 @@ function deleteTag(ti){
     }
   }));
   tags.splice(ti,1);
-  [manualTags,vpTags,editTags].forEach(s=>{[...s].forEach(id=>{if(id===t.id||id.startsWith(t.id+'/'))s.delete(id);});if(!s.size)s.add('general');});
+  [manualTags,editTags].forEach(s=>{[...s].forEach(id=>{if(id===t.id||id.startsWith(t.id+'/'))s.delete(id);});if(!s.size)s.add('general');});
   if(deckTagFilter===t.id||String(deckTagFilter).startsWith(t.id+'/'))deckTagFilter=null;
   studyTagFilter.forEach(id=>{if(id===t.id||id.startsWith(t.id+'/'))studyTagFilter.delete(id);});
   if(!studyTagFilter.size)studyTagFilter.add('general');
@@ -1651,7 +1595,7 @@ function deleteSubtag(ti,si){
   const parent=tags[ti]; const s=parent.subtags[si]; const sid=parent.id+'/'+s.id;
   Object.values(allDecks).forEach(deck=>deck.forEach(c=>{if(c.tags)c.tags=c.tags.filter(id=>id!==sid);}));
   parent.subtags.splice(si,1);
-  [manualTags,vpTags,editTags].forEach(sel=>sel.delete(sid));
+  [manualTags,editTags].forEach(sel=>sel.delete(sid));
   save(); renderTagEditList();
 }
 
@@ -1705,7 +1649,6 @@ function renderLangBar(){
   document.getElementById('ilang-target-label').textContent=m.name;
   document.getElementById('f-target-label').textContent=m.name+' Word';
   document.getElementById('edit-target-label').textContent=m.name+' Word';
-  document.getElementById('vp-target-label').textContent=m.name;
   const ft=document.getElementById('f-target');
   ft.dir=m.rtl?'rtl':'ltr'; ft.className=m.rtl?'rtl-input':'';
   // Apply language font to all RTL input fields
@@ -1713,7 +1656,6 @@ function renderLangBar(){
   document.querySelectorAll('.rtl-input').forEach(el=>{ el.style.fontFamily=lf||''; });
   ft.placeholder=m.code==='ur'?'\u06AF\u0627\u0691\u06CC':m.code==='ps'?'\u0645\u0648\u0679\u0631':'...';
   document.getElementById('f-roman-wrap').style.display=m.rtl?'':'none';
-  document.getElementById('vp-roman-field').style.display=m.rtl?'':'none';
   const deckTitle=document.getElementById('deck-title');
   if(deckTitle) deckTitle.textContent=m.name+' Deck';
 }
@@ -1721,14 +1663,14 @@ function renderLangBar(){
 function switchLang(code){
   currentLang=code; deckTagFilter=null; studyTagFilter=new Set(['general']);
   lastTappedDeckParent=null; lastTappedStudyParent=null;
-  manualTags=new Set(['general']); vpTags=new Set(['general']);
+  manualTags=new Set(['general']);
   selectedCardIds.clear();
   playTagFilter=new Set(['general']); lastTappedPlayParent=null;
   craftTagFilter=new Set(['general']); craftLastTappedParent=null;
-  renderLangBar(); renderTagSelectWrap('manual'); renderTagSelectWrap('voice');
+  renderLangBar(); renderTagSelectWrap('manual');
   renderDeckCatBar(); renderStudyCatBar(); renderDeck();
   if(document.getElementById('panel-study').classList.contains('visible'))initStudy();
-  hidePreview(); setMicStatus('Tap to speak','');
+  setMicStatus('Tap to speak','');
 }
 
 // LANG PICKER
@@ -1754,7 +1696,7 @@ function confirmLangPick(){
   if(!pickerSelectedCode)return toast('Select a language first');
   if(activeLangs.includes(pickerSelectedCode)){closeLangPicker();return;}
   activeLangs.push(pickerSelectedCode); if(!allDecks[pickerSelectedCode])allDecks[pickerSelectedCode]=[];
-  save(); if(!currentLang)currentLang=pickerSelectedCode; else currentLang=pickerSelectedCode; renderLangBar(); renderDeck(); renderTagSelectWrap('manual'); renderTagSelectWrap('voice'); renderDeckCatBar(); closeLangPicker();
+  save(); if(!currentLang)currentLang=pickerSelectedCode; else currentLang=pickerSelectedCode; renderLangBar(); renderDeck(); renderTagSelectWrap('manual'); renderDeckCatBar(); closeLangPicker();
   toast(getLangMeta(pickerSelectedCode).name+' added!');
 }
 
@@ -1765,7 +1707,7 @@ function showPanel(name,btn){
   document.getElementById('panel-'+name).classList.add('visible');
   const fb=document.getElementById('foot-'+name);
   if(fb)fb.classList.add('active');
-  if(name==='add'){ renderTagSelectWrap('manual'); renderTagSelectWrap('voice'); }
+  if(name==='add'){ renderTagSelectWrap('manual'); }
   if(name==='deck'){renderDeckCatBar();renderDeckSubtagBar();renderDeck();}
   if(name==='study'){renderStudyCatBar();renderStudySubtagBar();renderLevelFilter('study');initStudySwipe();initStudy();}
   if(name==='play'){renderPlayCatBar();renderLevelFilter('play');renderPlaySettings();}
@@ -2229,6 +2171,8 @@ function addManual(){
   checkDuplicate('f');
   ft.classList.remove('field-error'); fe.classList.remove('field-error');
   clearPendingMedia('manual');
+  const ms=document.getElementById('mic-status');
+  if(ms && ms.textContent.startsWith('Filled in below')) setMicStatus('Saved! Tap mic to record another.','');
   toast(isComplete({target,english,photo:pendingPhoto.manual,tags:cardTags})?'Card added!':'Incomplete card saved \u2014 finish it in the Deck.');
 }
 
@@ -2265,6 +2209,8 @@ function renderDeck(){
       (c.tags||[]).some(t=>tagLabel(t).toLowerCase().includes(q))
     );
   }
+  // order (default: newest first)
+  filtered=sortDeckCards(filtered);
   // update selection counter (uses ALL deck cards regardless of filter)
   const totalDeck=allCards.length;
   const selCount=selectedCardIds.size;
@@ -2507,12 +2453,10 @@ async function lookupGender(word, langCode) {
 // Apply gender to a set of gender pills by context
 function applyGender(gender, ctx) {
   if(!gender || gender === 'neut') return;
-  if(ctx === 'voice') setVpGender(gender);
-  else if(ctx === 'manual') setManualGender(gender);
+  if(ctx === 'manual') setManualGender(gender);
   else if(ctx === 'edit') setEditGender(gender);
   // Pulse the pill that was just selected
   const selectors = {
-    voice:  `#vp-gender-row .gender-pill.${gender}`,
     manual: `#manual-gender-row .gender-pill.${gender}`,
     edit:   `#edit-gender-row .gender-pill.${gender}`
   };
@@ -2538,31 +2482,6 @@ function setTranslating(prefix,on){
   const dn=document.getElementById(prefix+'-to-en');
   if(up){up.disabled=on;up.style.opacity=on?'.4':'1';}
   if(dn){dn.disabled=on;dn.style.opacity=on?'.4':'1';}
-}
-
-async function retranslateVoice(direction) {
-  const m = currentMeta();
-  setTranslating('vp-retrans', true);
-  try {
-    if (direction === 'toEn') {
-      const target = document.getElementById('vp-target-edit').value.trim();
-      if (!target) { toast('Enter a target word first.'); return; }
-      const english = await translate(target, m.myMemory, 'en');
-      document.getElementById('vp-english').value = english;
-      if (m.rtl) document.getElementById('vp-roman').value = roughRomanise(target);
-      lookupGender(target, m.myMemory).then(g=>{if(g)applyGender(g,'voice');}).catch(()=>{});
-    } else {
-      const english = document.getElementById('vp-english').value.trim();
-      if (!english) { toast('Enter a translation first.'); return; }
-      const target = await translate(english, 'en', m.myMemory);
-      document.getElementById('vp-target-edit').value = target;
-      checkDuplicate('vp');
-      document.getElementById('vp-target').textContent = target;
-      if (m.rtl) document.getElementById('vp-roman').value = roughRomanise(target);
-      lookupGender(target, m.myMemory).then(g=>{if(g)applyGender(g,'voice');}).catch(()=>{});
-    }
-  } catch(e) { toast('Translation failed — check connection.');
-  } finally { setTranslating('vp-retrans', false); }
 }
 
 async function retranslateManual(direction) {
@@ -2617,14 +2536,13 @@ async function retranslateEdit(direction) {
 
 
 // VOICE
-let recognition=null,isListening=false,vpGender='neut';
+let recognition=null,isListening=false;
 
 function setInputLang(lang){
   inputLang=lang;
   document.getElementById('ilang-target').classList.toggle('active',lang==='target');
   document.getElementById('ilang-en').classList.toggle('active',lang==='en');
   setMicStatus('Tap to speak in '+(lang==='en'?'English':currentMeta().name),'');
-  hidePreview();
 }
 
 const urduRomanMap={'\u0627':'a','\u0628':'b','\u067E':'p','\u062A':'t','\u0679':'t','\u062B':'s','\u062C':'j','\u0686':'ch','\u062D':'h','\u062E':'kh','\u062F':'d','\u0688':'d','\u0630':'z','\u0631':'r','\u0691':'r','\u0632':'z','\u0698':'zh','\u0633':'s','\u0634':'sh','\u0635':'s','\u0636':'z','\u0637':'t','\u0638':'z','\u0639':'a','\u063A':'gh','\u0641':'f','\u0642':'q','\u06A9':'k','\u06AF':'g','\u0644':'l','\u0645':'m','\u0646':'n','\u06BA':'n','\u0648':'w','\u06C1':'h','\u06BE':'h','\u0621':'','\u06CC':'y','\u06D2':'e','\u0626':'y','\u064A':'y','\u06CD':'y','\u0650':'i','\u064E':'a','\u064F':'u','\u0651':'','\u0652':'','\u0654':'','\u0670':''};
@@ -2681,7 +2599,7 @@ function startListening(){
     recognition=new SR();
     recognition.interimResults=true; recognition.maxAlternatives=3; recognition.continuous=false;
     recognition._lang=speechLang; recognition.lang=speechLang;
-    recognition.onstart=()=>{isListening=true;document.getElementById('mic-btn').classList.add('listening');document.getElementById('mic-ring').classList.add('pulse');setMicStatus('Listening\u2026','active');hidePreview();};
+    recognition.onstart=()=>{isListening=true;document.getElementById('mic-btn').classList.add('listening');document.getElementById('mic-ring').classList.add('pulse');setMicStatus('Listening\u2026','active');};
     let interimText='';
     recognition.onresult=(e)=>{interimText='';for(let i=e.resultIndex;i<e.results.length;i++)interimText+=e.results[i][0].transcript;if(!e.results[e.results.length-1].isFinal)setMicStatus('\uD83C\uDFA4 '+interimText,'active');};
     recognition.onend=async()=>{
@@ -2694,13 +2612,13 @@ function startListening(){
         if(inputLang==='en'){targetWord=await translate(spoken,'en',m.myMemory);english=spoken;}
         else{targetWord=spoken;english=await translate(spoken,m.myMemory,'en');}
         roman=m.rtl?roughRomanise(targetWord):'';
-        showVoicePreview({target:targetWord,roman,english,gender:'neut'});
-        setMicStatus('Tap mic to record another','');
-        lookupGender(targetWord,m.myMemory).then(g=>{if(g)applyGender(g,'voice');}).catch(()=>{});
+        fillFormFromSpeech({target:targetWord,roman,english,gender:'neut'});
+        setMicStatus('Filled in below \u2014 check it, then tap Save','');
+        lookupGender(targetWord,m.myMemory).then(g=>{if(g)applyGender(g,'manual');}).catch(()=>{});
       }catch(err){
         setMicStatus('Translation failed \u2014 check connection.','error');
-        if(inputLang==='en')showVoicePreview({target:'',roman:'',english:spoken,gender:'neut'});
-        else showVoicePreview({target:spoken,roman:m.rtl?roughRomanise(spoken):'',english:'',gender:'neut'});
+        if(inputLang==='en')fillFormFromSpeech({target:'',roman:'',english:spoken,gender:'neut'});
+        else fillFormFromSpeech({target:spoken,roman:m.rtl?roughRomanise(spoken):'',english:'',gender:'neut'});
       }
     };
     recognition.onerror=(e)=>{
@@ -2728,56 +2646,21 @@ function stopListening(){
 
 function setMicStatus(html,cls=''){const el=document.getElementById('mic-status');el.innerHTML=html;el.className='mic-status'+(cls?' '+cls:'');}
 
-function showVoicePreview(data){
-  const m=currentMeta();
-  const tEl=document.getElementById('vp-target');
-  tEl.textContent=data.target||''; tEl.className='preview-target '+(m.rtl?'':'ltr');
-  tEl.style.fontFamily=langFont(m.code)||'';
-  const tIn=document.getElementById('vp-target-edit');
-  tIn.value=data.target||''; tIn.dir=m.rtl?'rtl':'ltr'; tIn.className=m.rtl?'rtl-input':''; tIn.style.fontFamily=langFont(m.code)||'';
-  tIn.classList.remove('field-error');
-  document.getElementById('vp-roman').value=data.roman||'';
-  document.getElementById('vp-roman-field').style.display=m.rtl?'':'none';
-  const eIn=document.getElementById('vp-english');
-  eIn.value=data.english||''; eIn.classList.remove('field-error');
-  vpGender=data.gender||'neut';
-  document.querySelectorAll('#vp-gender-row .gender-pill').forEach(p=>p.classList.remove('selected'));
-  const gp=document.querySelector('#vp-gender-row .gender-pill.'+vpGender);if(gp)gp.classList.add('selected');
-  tEl.style.color=vpGender==='masc'?'var(--masc)':vpGender==='fem'?'var(--fem)':'var(--text)';
-  document.getElementById('voice-preview').classList.add('visible');
-  checkDuplicate('vp');
-}
-
-function hidePreview(){document.getElementById('voice-preview').classList.remove('visible');const w=document.getElementById('vp-dup-warn');if(w)w.style.display='none';dupMatchId.vp=null;}
-
-function setVpGender(g){
-  vpGender=g;
-  document.querySelectorAll('#vp-gender-row .gender-pill').forEach(p=>p.classList.remove('selected'));
-  document.querySelector('#vp-gender-row .gender-pill.'+g).classList.add('selected');
-  document.getElementById('vp-target').style.color=g==='masc'?'var(--masc)':g==='fem'?'var(--fem)':'var(--text)';
-}
-
-function saveVoiceCard(){
-  const target=document.getElementById('vp-target-edit').value.trim();
-  const roman=document.getElementById('vp-roman').value.trim();
-  const english=document.getElementById('vp-english').value.trim();
-  const hasPhoto=!!pendingPhoto.voice;
-  document.getElementById('vp-target-edit').classList.toggle('field-error',!target&&!hasPhoto);
-  document.getElementById('vp-english').classList.toggle('field-error',!english&&!hasPhoto);
-  if(!target&&!english&&!hasPhoto){toast('Enter at least a target word, translation, or add a photo.');return;}
-  const cardTags=[...vpTags].filter(Boolean);
-  const card={target,roman,english,gender:vpGender,tags:cardTags,
-    photo:pendingPhoto.voice||null, emoji:pendingEmoji.voice||null, audio:pendingAudio.voice||null};
-  pushCard(card);
-  hidePreview(); setMicStatus('Saved! Tap mic to record another.','');
-  clearPendingMedia('voice');
-  toast(isComplete(card)?'Card saved!':'Incomplete card saved \u2014 finish it in the Deck.');
-}
-
-function discardVoice(){
-  hidePreview();
-  clearPendingMedia('voice');
-  setMicStatus('Tap to speak','');
+// A speech result goes straight into the "Add a Single Card" form (there is no separate panel).
+// Existing text in the form is replaced; tags, photo/emoji and recording already chosen are kept.
+function fillFormFromSpeech(data){
+  const ft = document.getElementById('f-target');
+  const fe = document.getElementById('f-english');
+  ft.value = data.target || '';
+  document.getElementById('f-roman').value = data.roman || '';
+  fe.value = data.english || '';
+  ft.classList.remove('field-error'); fe.classList.remove('field-error');
+  setManualGender(data.gender || 'neut');
+  checkDuplicate('f');
+  // show the user where the result went: scroll to the form and flash it briefly
+  const form = ft.closest('.card-form') || ft;
+  form.scrollIntoView({ behavior:'smooth', block:'start' });
+  form.classList.remove('form-flash'); void form.offsetWidth; form.classList.add('form-flash');
 }
 
 // EDIT MODAL
@@ -2838,23 +2721,21 @@ function saveEdit(){
 // MEDIA — photo capture, gallery, audio
 // ══════════════════════════════════════
 
-// pending state per context: 'manual' | 'edit' | 'voice'
-const pendingPhoto = { manual:null, edit:null, voice:null, craft:null };
-const pendingEmoji = { manual:null, edit:null, voice:null, craft:null };
-const pendingAudio = { manual:null, edit:null, voice:null, craft:null };
+// pending state per context: 'manual' | 'edit' | 'craft'
+const pendingPhoto = { manual:null, edit:null, craft:null };
+const pendingEmoji = { manual:null, edit:null, craft:null };
+const pendingAudio = { manual:null, edit:null, craft:null };
 
 // active card recording per context
 const cardRecState = {
   manual:{ rec:null, stream:null },
   edit:{ rec:null, stream:null },
-  voice:{ rec:null, stream:null },
   craft:{ rec:null, stream:null }
 };
 
 const CTX_BTNS = {
   manual: { camera:'f-camera-btn', gallery:'f-gallery-btn', rec:'f-rec-btn', recLbl:'f-rec-lbl' },
   edit:   { camera:'edit-camera-btn', gallery:'edit-gallery-btn', rec:'edit-rec-btn', recLbl:'edit-rec-lbl' },
-  voice:  { camera:'vp-camera-btn', gallery:'vp-gallery-btn', rec:'vp-rec-btn', recLbl:'vp-rec-lbl' },
   craft:  { camera:'craft-camera-btn', gallery:'craft-gallery-btn', rec:'craft-rec-btn', recLbl:'craft-rec-lbl' }
 };
 
@@ -2872,7 +2753,7 @@ function handlePhotoFile(input, ctx){
 }
 
 function renderMediaStrip(ctx){
-  const stripId = ctx==='edit'?'edit-media-strip':ctx==='voice'?'vp-media-strip':ctx==='craft'?'craft-media-strip':'f-media-strip';
+  const stripId = ctx==='edit'?'edit-media-strip':ctx==='craft'?'craft-media-strip':'f-media-strip';
   const strip=document.getElementById(stripId); if(!strip)return;
   let html='';
   if(pendingEmoji[ctx]){
@@ -3332,15 +3213,15 @@ function applyMatchResult(cardId, correct, anchorEl){
 }
 
 // DUPLICATE DETECTION
-// prefix: 'f' (manual form) or 'vp' (voice preview)
-const dupMatchId = { f:null, vp:null };
+// prefix: 'f' (the add-card form)
+const dupMatchId = { f:null };
 
 function normalizeWord(s){
   return (s||'').normalize('NFC').trim().toLowerCase();
 }
 
 function checkDuplicate(prefix){
-  const input = document.getElementById(prefix==='f' ? 'f-target' : 'vp-target-edit');
+  const input = document.getElementById('f-target');
   const warn  = document.getElementById(prefix+'-dup-warn');
   if(!input || !warn) return;
   const val = normalizeWord(input.value);
@@ -3400,6 +3281,65 @@ function doUndo(){
   if(btn) btn.disabled = undoStack.length === 0;
   toast('Undone.');
 }
+
+// DECK SORT ORDER (default: newest first; not remembered between launches)
+let deckSort = 'newest';
+const DECK_SORTS = [
+  { id:'newest', label:'Newest first' },
+  { id:'oldest', label:'Oldest first' },
+  { id:'az',     label:'Translation A\u2013Z' },
+  { id:'za',     label:'Translation Z\u2013A' }
+];
+
+// Card ids start with the creation time; cards without one count as oldest
+function cardCreatedAt(c){
+  const t = parseFloat(String(c.id).split('_')[0]);
+  return isFinite(t) && t > 1e11 ? t : 0;
+}
+
+// Returns a sorted copy; never reorders the stored deck
+function sortDeckCards(cards){
+  const pos = new Map(cards.map((c, i) => [c, i]));            // stored order as the final tie-break
+  const older = (a, b) => (cardCreatedAt(a) - cardCreatedAt(b)) || (pos.get(a) - pos.get(b));
+  const list = [...cards];
+  if(deckSort === 'oldest') return list.sort(older);
+  if(deckSort === 'newest') return list.sort((a, b) => older(b, a));
+  const dir = deckSort === 'az' ? 1 : -1;
+  const key = c => (c.english || '').trim();
+  return list.sort((a, b)=>{
+    const ka = key(a), kb = key(b);
+    if(!ka || !kb) return (!ka && !kb) ? older(b, a) : (!ka ? 1 : -1);   // no translation: always last
+    return dir * ka.localeCompare(kb, undefined, { sensitivity:'base', numeric:true }) || older(b, a);
+  });
+}
+
+function renderSortMenu(){
+  const menu = document.getElementById('deck-sort-menu');
+  if(menu){
+    menu.innerHTML = DECK_SORTS.map(o =>
+      `<button class="sort-opt ${o.id === deckSort ? 'current' : ''}" onclick="setDeckSort('${o.id}')"><span class="sort-check">\u2714</span>${o.label}</button>`
+    ).join('');
+  }
+  const btn = document.getElementById('btn-sort');
+  if(btn) btn.classList.toggle('sort-active', deckSort !== 'newest');   // accent colour when not the default
+}
+function toggleSortMenu(e){
+  if(e) e.stopPropagation();
+  const m = document.getElementById('deck-sort-menu'); if(!m) return;
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+function closeSortMenu(){
+  const m = document.getElementById('deck-sort-menu');
+  if(m) m.style.display = 'none';
+}
+function setDeckSort(id){
+  deckSort = id;
+  renderSortMenu();
+  closeSortMenu();
+  renderDeck();
+}
+document.addEventListener('click', e=>{ if(!e.target.closest('.sort-wrap')) closeSortMenu(); });
+renderSortMenu();
 
 // SELECTION SYSTEM
 // selectedCardIds persists across searches — it holds IDs of all selected cards
@@ -4295,7 +4235,7 @@ function restoreFromFile(input){
       localStorage.setItem('lm-langs', JSON.stringify(activeLangs));
       localStorage.setItem('lm-tags',  JSON.stringify(tags));
       selectedCardIds.clear(); deckTagFilter=null; studyTagFilter=new Set(['general']);
-      renderLangBar(); renderTagSelectWrap('manual'); renderTagSelectWrap('voice');
+      renderLangBar(); renderTagSelectWrap('manual');
       renderDeckCatBar(); renderDeck(); closeSettings();
       toast('Data restored!');
     } catch(err) { toast('Could not read file: '+err.message); }
@@ -4472,7 +4412,7 @@ function importFromFile(input){
       if(!currentLang && activeLangs.length) currentLang = activeLangs[0];
 
       save();
-      renderLangBar(); renderTagSelectWrap('manual'); renderTagSelectWrap('voice');
+      renderLangBar(); renderTagSelectWrap('manual');
       renderDeckCatBar(); renderDeck(); closeSettings();
       toast(`Imported: ${cardsAdded} card${cardsAdded!==1?'s':''}, ${langsAdded} lang${langsAdded!==1?'s':''}, ${tagsAdded} tag${tagsAdded!==1?'s':''}.`);
     } catch(err) { toast('Could not read file: '+err.message); }
@@ -4548,7 +4488,6 @@ function confirmClearAll(){
   closeSettings();
   renderLangBar();
   renderTagSelectWrap('manual');
-  renderTagSelectWrap('voice');
   renderDeckCatBar();
   renderDeck();
   setTimeout(()=>openLangPicker(), 300);
@@ -4574,7 +4513,7 @@ document.addEventListener('keydown',e=>{
     if(e.key==='ArrowLeft'||e.key==='p')studyPrev();
     if(e.key===' '||e.key==='Enter'){e.preventDefault();flipCard();}
   }
-  if(e.key==='Escape'){closeEdit();closeLangPicker();closeNewCat();closeCatEdit();closeLightbox();closeBulkEdit();closeEmojiPicker();closeSettings();closeExportPicker();}
+  if(e.key==='Escape'){closeEdit();closeLangPicker();closeNewCat();closeCatEdit();closeLightbox();closeBulkEdit();closeEmojiPicker();closeSettings();closeExportPicker();closeSortMenu();}
 });
 // Enter to save GT key
 document.addEventListener('DOMContentLoaded',()=>{
@@ -4718,7 +4657,6 @@ Object.values(allDecks).forEach(deck=>deck.forEach(c=>{
 // INIT
 renderLangBar();
 renderTagSelectWrap('manual');
-renderTagSelectWrap('voice');
 renderDeckCatBar();
 renderDeck();
 checkShowBanner();
